@@ -25,13 +25,17 @@ void UActor::TickFlying(float elapsed)
 	float maxSpeed = player ? player->AirSpeed() : pawn->AirSpeed() * pawn->DesiredSpeed();
 	ApplyMovementAcceleration(elapsed, pawn->AccelRate(), zone->ZoneFluidFriction(), maxSpeed);
 
+	// The ladder code of Deus Ex calls this function for a player that walks, falls or swims, so the physics mode
+	// at the start is the mode that must stay
+	uint8_t physicsAtStart = Physics();
+
 	float timeLeft = elapsed;
 	vec3 vel = Velocity() + zone->ZoneVelocity() * elapsed * 25.0f;
 	if (length(vel))
 	{
 		for (int iteration = 0; timeLeft > 0.0f && iteration < 5; iteration++)
 		{
-			if (ShouldAbortMovementTick(PHYS_Flying))
+			if (ShouldAbortMovementTick(physicsAtStart))
 				break;
 
 			vec3 moveDelta = vel * timeLeft;
@@ -63,6 +67,6 @@ void UActor::TickFlying(float elapsed)
 		}
 	}
 
+	// As APawn::physFlying in Engine.dll: the new velocity is the real movement of this tick, in all three directions
 	RecomputeVelocityFromDisplacement(elapsed);
-	Velocity().z = 0.0f;
 }
