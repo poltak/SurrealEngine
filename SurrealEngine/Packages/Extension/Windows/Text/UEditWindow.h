@@ -48,6 +48,8 @@ public:
 	bool MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks) override;
 	void TextModifiedByScript() override;
 
+	void ActivateEdit();
+
 	BitfieldBool bCursorShowing() { return BoolValue(PropOffsets_EditWindow.bCursorShowing); }
 	BitfieldBool bDragging() { return BoolValue(PropOffsets_EditWindow.bDragging); }
 	BitfieldBool bEditable() { return BoolValue(PropOffsets_EditWindow.bEditable); }

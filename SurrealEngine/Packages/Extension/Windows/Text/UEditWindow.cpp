@@ -135,15 +135,10 @@ bool UEditWindow::InsertText(std::optional<std::string> InsertText, std::optiona
 
 	if (InsertText.has_value())
 	{
+		// A field with one line takes no new line. The script of EditWindow sends "|n" for the Enter key.
+		// VirtualKeyPressed did the work of that key before.
 		if (InsertText.value() == "|n" && bSingleLine())
-		{
-			for (UWindow* cur = this; cur != nullptr; cur = cur->parentOwner())
-			{
-				if (EditActivated(this, HasTextChanged()))
-					break;
-			}
 			return true;
-		}
 
 		std::string text = Text();
 		int selStart = 0, selCount = 0;
@@ -347,10 +342,15 @@ void UEditWindow::SetTextChangedFlag(std::optional<bool> bSet)
 
 void UEditWindow::InitWindow()
 {
-	ULargeTextWindow::InitWindow();
+	// As XEditWindow::Init: a new field can be edited, has more than one line, and can get the keyboard focus.
+	// Set this before the InitWindow event of the script runs. The script of a field with one line calls
+	// EnableSingleLineEditing in that event.
 	blinkPeriod() = 0.5f;
 	bEditable() = true;
-	bSingleLine() = true; // Does it default to single or multi line?
+	bSingleLine() = false;
+	SetSelectability(true);
+
+	ULargeTextWindow::InitWindow();
 }
 
 void UEditWindow::Tick(float timeElapsed)
@@ -445,7 +445,26 @@ bool UEditWindow::KeyPressed(std::string key)
 
 bool UEditWindow::VirtualKeyPressed(EInputKey key, bool bRepeat)
 {
+	// As XEditWindow::VirtualKeyPressed: the Enter key in a field with one line tells the windows above this
+	// field that the player finished the text. A login screen then goes to the next field or starts the login.
+	if (key == IK_Enter)
+	{
+		PlayEditSound(enterSound(), {}, {});
+		if (bSingleLine() && bEditable())
+			ActivateEdit();
+	}
+
 	return ULargeTextWindow::VirtualKeyPressed(key, bRepeat);
+}
+
+void UEditWindow::ActivateEdit()
+{
+	bool modified = HasTextChanged();
+	for (UWindow* cur = this; cur != nullptr; cur = cur->parentOwner())
+	{
+		if (cur->EditActivated(this, modified))
+			break;
+	}
 }
 
 bool UEditWindow::MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks)
