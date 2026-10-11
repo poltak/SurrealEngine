@@ -139,6 +139,16 @@ bool UActor::SetCollisionSize(float newRadius, float newHeight)
 	return true;
 }
 
+// The base of an actor that stands on level geometry. In Deus Ex this is the level info, as in Unreal: a line check
+// of the original gives the level info as the actor of a hit on level geometry, and the scripts of the game use
+// "Base != Level" with no test for None (DeusExPlayer.DoJump).
+UActor* UActor::FloorBase(UActor* hitActor)
+{
+	if (!hitActor && engine->LaunchInfo.IsDeusEx())
+		return Level();
+	return hitActor;
+}
+
 void UActor::PhysLanded(UActor* hitActor, const vec3& hitNormal)
 {
 	// landed on the floor
@@ -149,12 +159,12 @@ void UActor::PhysLanded(UActor* hitActor, const vec3& hitNormal)
 		if (UObject::TryCast<UPawn>(this))
 		{
 			SetPhysics(PHYS_Walking);
-			SetBase(hitActor, true);
+			SetBase(FloorBase(hitActor), true);
 		}
 		else
 		{
 			SetPhysics(PHYS_None);
-			SetBase(hitActor, true);
+			SetBase(FloorBase(hitActor), true);
 			Velocity() = vec3(0.0f);
 		}
 	}
@@ -238,7 +248,7 @@ bool UActor::TryStepToGround(vec3 stepDownDelta)
 	// We could reach the ground. Step down there.
 	floorHit = TryMove(stepDownDelta);
 	if (floorHit.Fraction != 1.0f)
-		SetBase(floorHit.Actor, true);
+		SetBase(FloorBase(floorHit.Actor), true);
 	return true;
 }
 

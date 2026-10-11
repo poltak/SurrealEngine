@@ -416,6 +416,7 @@ public:
 	// Common TickWalking/TickSwimming/TickFlying preamble: casts to UPawn (null return means "not a
 	// pawn, caller should bail"), checks HasLeftWorld, and resets OldLocation/bJustTeleported for the tick.
 	UPawn* PreparePawnMovementTick();
+	UActor* FloorBase(UActor* hitActor);
 	// Fires the HitWall event with the actor/level that was hit - used by every movement tick function.
 	void FireHitWall(const CollisionHit& hit);
 	// Steps onto the ground if able, if not (would be falling) retuns false without moving
