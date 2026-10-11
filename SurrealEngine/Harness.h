@@ -37,8 +37,13 @@ public:
 	void Tick(Engine* engine);
 	void AfterFrame(Engine* engine, RenderDevice* device);
 
+	// True for a window event that comes from the real keyboard or mouse while a script drives the game.
+	// The engine drops such events, so a person who works on the same computer cannot change a test.
+	bool DropRealInput(const char* what);
+
 	bool NoLauncher = false;
 	bool NoGrab = false;
+	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
 
 private:
 	struct Event
@@ -53,6 +58,8 @@ private:
 	void WriteShot(Engine* engine, RenderDevice* device, const std::string& name);
 
 	bool initialized = false;
+	bool injecting = false;
+	int droppedRealEvents = 0;
 	double exitAfter = 0.0;
 	std::string shotDir;
 	double shotInterval = 0.0;

@@ -5,6 +5,7 @@
 #include "GameWindow.h"
 #include "RenderDevice/RenderDevice.h"
 #include "Packages/Engine/UViewport.h"
+#include "Packages/Extension/Windows/TabGroup/URootWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Utils/CommandLine.h"
 #include "Utils/Logger.h"
@@ -31,6 +32,7 @@ void Harness::Init()
 
 	NoLauncher = commandline->HasArg({}, "--nolauncher");
 	NoGrab = commandline->HasArg({}, "--nograb");
+	TraceKeys = commandline->HasArg({}, "--tracekeys");
 	exitAfter = commandline->GetArgDouble({}, "--exit-after", 0.0);
 	shotDir = commandline->GetArg({}, "--shots");
 	shotInterval = commandline->GetArgDouble({}, "--shot-interval", 0.0);
@@ -120,13 +122,35 @@ static Point ParsePoint(Engine* engine, const std::string& args)
 	double fx = 0.5, fy = 0.5;
 	std::istringstream parts(args);
 	parts >> fx >> fy;
+
+	// The Deus Ex root window draws its own cursor and moves it with relative mouse input only.
+	// Put that cursor at the same fraction of the root window.
+	if (engine->dxRootWindow && engine->dxRootWindow->IsCursorVisible())
+		engine->dxRootWindow->SetRootCursorPos((float)(fx * engine->dxRootWindow->Width()), (float)(fy * engine->dxRootWindow->Height()));
+
 	double scale = engine->window->GetDpiScale();
 	return Point(fx * engine->window->GetPixelWidth() / scale, fy * engine->window->GetPixelHeight() / scale);
+}
+
+bool Harness::DropRealInput(const char* what)
+{
+	if (!initialized || events.empty() || injecting)
+		return false;
+	if (droppedRealEvents++ < 20)
+		LogMessage(std::string("Harness: dropped real input event: ") + what);
+	return true;
 }
 
 void Harness::RunEvent(Engine* engine, const Event& e)
 {
 	LogMessage("Harness: " + e.Command + " " + e.Args);
+
+	struct InjectScope
+	{
+		InjectScope(bool& flag) : flag(flag) { flag = true; }
+		~InjectScope() { flag = false; }
+		bool& flag;
+	} injectScope(injecting);
 
 	if (e.Command == "keydown")
 	{

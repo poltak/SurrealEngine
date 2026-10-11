@@ -1619,6 +1619,9 @@ void Engine::OnWindowPaint()
 
 void Engine::OnWindowMouseMove(const Point& pos)
 {
+	if (Harness::Get().DropRealInput("mouse move"))
+		return;
+
 	if (playingAvi)
 		return;
 
@@ -1634,6 +1637,9 @@ void Engine::OnWindowMouseMove(const Point& pos)
 
 void Engine::OnWindowMouseDown(const Point& pos, EInputKey key)
 {
+	if (Harness::Get().DropRealInput("mouse down"))
+		return;
+
 	if (playingAvi)
 		return;
 
@@ -1645,6 +1651,9 @@ void Engine::OnWindowMouseDown(const Point& pos, EInputKey key)
 
 void Engine::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
 {
+	if (Harness::Get().DropRealInput("mouse double click"))
+		return;
+
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowMouseDoubleclick(pos, key))
 		return;
 
@@ -1656,6 +1665,9 @@ void Engine::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
 
 void Engine::OnWindowMouseUp(const Point& pos, EInputKey key)
 {
+	if (Harness::Get().DropRealInput("mouse up"))
+		return;
+
 	if (playingAvi)
 		return;
 
@@ -1667,6 +1679,9 @@ void Engine::OnWindowMouseUp(const Point& pos, EInputKey key)
 
 void Engine::OnWindowMouseWheel(const Point& pos, EInputKey key)
 {
+	if (Harness::Get().DropRealInput("mouse wheel"))
+		return;
+
 	if (playingAvi)
 		return;
 
@@ -1679,6 +1694,9 @@ void Engine::OnWindowMouseWheel(const Point& pos, EInputKey key)
 
 void Engine::OnWindowRawMouseMove(int dx, int dy)
 {
+	if (Harness::Get().DropRealInput("raw mouse move"))
+		return;
+
 	if (playingAvi)
 		return;
 
@@ -1691,6 +1709,9 @@ void Engine::OnWindowRawMouseMove(int dx, int dy)
 
 void Engine::OnWindowKeyChar(std::string chars)
 {
+	if (Harness::Get().DropRealInput("key char"))
+		return;
+
 	if (playingAvi)
 		return;
 
@@ -1702,6 +1723,9 @@ void Engine::OnWindowKeyChar(std::string chars)
 
 void Engine::OnWindowKeyDown(EInputKey key)
 {
+	if (Harness::Get().DropRealInput("key down"))
+		return;
+
 	if (playingAvi)
 	{
 		if (key == EInputKey::IK_Escape)
@@ -1717,6 +1741,9 @@ void Engine::OnWindowKeyDown(EInputKey key)
 
 void Engine::OnWindowKeyUp(EInputKey key)
 {
+	if (Harness::Get().DropRealInput("key up"))
+		return;
+
 	if (playingAvi)
 		return;
 
