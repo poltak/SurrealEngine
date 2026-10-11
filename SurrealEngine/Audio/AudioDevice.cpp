@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "AudioDevice.h"
+#include "Harness.h"
 #include "AudioSource.h"
 #include "Engine.h"
 #include "Native/NObject.h"
@@ -228,6 +229,10 @@ public:
 		alListener3f(AL_VELOCITY, 0, 0, 0);
 		alListenerfv(AL_ORIENTATION, listenerOri);
 		alListenerf(AL_METERS_PER_UNIT, 1.f / UU_PER_METER);
+
+		// Test harness: --mute sets the master gain to zero, so a test run makes no sound
+		if (Harness::Get().Mute)
+			alListenerf(AL_GAIN, 0.0f);
 
 		alDistanceModel(AL_LINEAR_DISTANCE_CLAMPED);
 		alSpeedOfSound(343.3f / (1.0f / UU_PER_METER));

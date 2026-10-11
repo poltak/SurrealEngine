@@ -37,6 +37,7 @@ void Harness::Init()
 
 	NoLauncher = commandline->HasArg({}, "--nolauncher");
 	NoGrab = commandline->HasArg({}, "--nograb");
+	Mute = commandline->HasArg({}, "--mute");
 	TraceKeys = commandline->HasArg({}, "--tracekeys");
 	TraceAI = commandline->HasArg({}, "--traceai");
 	double fixedFps = commandline->GetArgDouble({}, "--fixed-fps", 0.0);
@@ -265,6 +266,71 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			break;
 		}
 	}
+	else if (e.Command == "teleportto")
+	{
+		// teleportto <actor name or class> [distance]: put the player near that actor, with a free line to it, and aim at it
+		std::string targetName;
+		float distance = 70.0f;
+		std::istringstream parts(e.Args);
+		parts >> targetName >> distance;
+		UPlayerPawn* player = engine->viewport ? UObject::TryCast<UPlayerPawn>(engine->viewport->Actor()) : nullptr;
+		UActor* target = nullptr;
+		for (UActor* actor : engine->Level->Actors)
+		{
+			if (actor && actor != player && !actor->bDeleteMe() && actor->Name == NameString(targetName))
+			{
+				target = actor;
+				break;
+			}
+		}
+		if (!target)
+		{
+			float best = 0.0f;
+			for (UActor* actor : engine->Level->Actors)
+			{
+				if (actor && actor != player && !actor->bDeleteMe() && actor->IsA(targetName))
+				{
+					float d = player ? length(actor->Location() - player->Location()) : 0.0f;
+					if (!target || d < best)
+					{
+						target = actor;
+						best = d;
+					}
+				}
+			}
+		}
+		if (!player || !target)
+		{
+			LogMessage("Harness: teleportto: no actor " + targetName);
+		}
+		else
+		{
+			vec3 oldLocation = player->Location();
+			bool done = false;
+			for (int step = 0; step < 16 && !done; step++)
+			{
+				float angle = step * (2.0f * 3.14159265f / 16.0f);
+				vec3 spot = target->Location() + vec3(std::cos(angle), std::sin(angle), 0.0f) * distance;
+				spot.z += std::max(player->CollisionHeight() - target->CollisionHeight(), 0.0f) + 2.0f;
+				if (!player->SetLocation(spot))
+					continue;
+				vec3 eye = player->Location() + vec3(0.0f, 0.0f, player->BaseEyeHeight());
+				if (engine->Level->Collision.TraceAnyHit(eye, target->Location(), player, false, true, true))
+					continue;
+				player->Velocity() = vec3(0.0f);
+				// The player can drop to the floor after this. Keep the aim on the target for a short time.
+				aimTarget = target;
+				aimUntil = engine->TotalTime + 0.5;
+				done = true;
+			}
+			if (!done)
+				player->SetLocation(oldLocation);
+			char buf[200];
+			snprintf(buf, sizeof(buf), "Harness: teleportto %s %s at (%.0f %.0f %.0f), player at (%.0f %.0f %.0f)", target->Name.ToString().c_str(), done ? "ok" : "FAILED",
+				target->Location().x, target->Location().y, target->Location().z, player->Location().x, player->Location().y, player->Location().z);
+			LogMessage(buf);
+		}
+	}
 	else if (e.Command == "setprop")
 	{
 		// setprop <class> <property> <value>: set a property on each live actor of that class
@@ -287,11 +353,20 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	}
 	else if (e.Command == "dump")
 	{
-		// dump <class> [radius]: log each actor of that class, within the radius of the player if given
-		std::string className;
+		// dump <class> [radius] [property,property,...]
+		std::string className, extraProps;
 		float radius = 0.0f;
 		std::istringstream parts(e.Args);
-		parts >> className >> radius;
+		parts >> className >> radius >> extraProps;
+		std::vector<std::string> props = { "Orders", "Alliance", "EnemyLastSeen", "SeekLevel", "bStasis" };
+		if (!extraProps.empty())
+		{
+			props.clear();
+			std::istringstream list(extraProps);
+			std::string item;
+			while (std::getline(list, item, ','))
+				props.push_back(item);
+		}
 		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
 		for (UActor* actor : engine->Level->Actors)
 		{
@@ -310,12 +385,12 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 				if (pawn->Enemy())
 					text += " enemy=" + pawn->Enemy()->Name.ToString();
 			}
-			for (const char* prop : { "Orders", "Alliance", "EnemyLastSeen", "SeekLevel", "bStasis" })
+			for (const std::string& prop : props)
 			{
 				if (!actor->HasProperty(prop))
 					continue;
 				std::string value = actor->GetPropertyAsString(prop);
-				text += std::string(" ") + prop + "=" + value;
+				text += " " + prop + "=" + value;
 			}
 			LogMessage(text);
 		}
@@ -349,6 +424,22 @@ void Harness::Tick(Engine* engine)
 		int w = 0, h = 0;
 		if (sscanf(winSize.c_str(), "%dx%d", &w, &h) == 2 && (engine->window->GetPixelWidth() != w || engine->window->GetPixelHeight() != h))
 			engine->window->SetResolution(winSize);
+	}
+
+	if (aimTarget)
+	{
+		UPlayerPawn* player = engine->viewport ? UObject::TryCast<UPlayerPawn>(engine->viewport->Actor()) : nullptr;
+		if (!player || aimTarget->bDeleteMe() || engine->TotalTime > aimUntil)
+		{
+			aimTarget = nullptr;
+		}
+		else
+		{
+			vec3 eye = player->Location() + vec3(0.0f, 0.0f, player->EyeHeight());
+			Rotator aim = Rotator::FromVector(aimTarget->Location() - eye);
+			player->ViewRotation() = Rotator(aim.Pitch & 0xffff, aim.Yaw & 0xffff, 0);
+			player->SetRotation(Rotator(0, aim.Yaw & 0xffff, 0));
+		}
 	}
 
 	while (nextEvent < events.size() && events[nextEvent].Time <= engine->TotalTime)
