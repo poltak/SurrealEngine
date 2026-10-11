@@ -187,6 +187,7 @@ public:
 	URootWindow* GetRootWindow();
 	UObject* GetTabGroupWindow();
 	float GetTickOffset();
+	static double WindowsTickOffset; // seconds of window time since the game started
 	UObject* GetTopChild(std::optional<bool> bVisibleOnly);
 	void GrabMouse();
 	void Hide();
@@ -227,6 +228,8 @@ public:
 	void SetBaselineData(std::optional<float> newBaselineOffset, std::optional<float> newUnderlineHeight);
 	void SetBoldFont(UObject* fn);
 	void SetChildVisibility(bool bNewVisibility);
+	void SetVisibility(bool bNewVisibility);
+	void InvokeVisibilityChange(bool bNewVisibility);
 	void SetClientObject(UObject* newClientObject);
 	void SetConfiguration(float newX, float newY, float newWidth, float NewHeight);
 	void SetCursorPos(float newMouseX, float newMouseY);

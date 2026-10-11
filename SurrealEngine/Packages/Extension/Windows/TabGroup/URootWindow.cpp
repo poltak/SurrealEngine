@@ -317,7 +317,7 @@ bool URootWindow::OnWindowMouseDown(const Point& pos, EInputKey key)
 	if (focus->bIsSelectable())
 		SetRootFocusWindow(focus);
 
-	int numClicks = 1; // What is this?
+	int numClicks = UpdateClickCount(focus, key, true);
 	for (UWindow* cur = focus; cur; cur = cur->parentOwner())
 	{
 		if (cur->MouseButtonPressed(relativeX, relativeY, key, numClicks))
@@ -327,10 +327,47 @@ bool URootWindow::OnWindowMouseDown(const Point& pos, EInputKey key)
 	return IsModalOpen();
 }
 
+// XRootWindow::HandleButtons counts the clicks. A press on the same window with the same button, before the
+// time limit ends and inside the distance limit, is one more click. A list uses the count for its double click.
+int URootWindow::UpdateClickCount(UWindow* window, EInputKey key, bool press)
+{
+	if (multiClickTimeout() <= 0.0f)
+		multiClickTimeout() = 0.5f;
+	if (maxMouseDist() <= 0.0f)
+		maxMouseDist() = 10.0f;
+
+	float now = GetTickOffset();
+	float timeLeft = lastButtonPress() - now;
+	if (timeLeft <= 0.0f || window != lastButtonWindow() || (int)key != lastButtonType() ||
+		std::abs(MouseX() - firstButtonMouseX()) > maxMouseDist() || std::abs(MouseY() - firstButtonMouseY()) > maxMouseDist())
+	{
+		timeLeft = 0.0f;
+		lastButtonPress() = 0.0f;
+		lastButtonType() = (int)key;
+		lastButtonWindow() = window;
+		clickCount() = 0;
+	}
+
+	if (press)
+	{
+		if (timeLeft > 0.0f)
+			clickCount()++;
+		lastButtonPress() = now + multiClickTimeout();
+		if (clickCount() < 1)
+		{
+			firstButtonMouseX() = MouseX();
+			firstButtonMouseY() = MouseY();
+		}
+	}
+
+	return clickCount() + 1;
+}
+
 bool URootWindow::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
 {
-	// Is this numClicks = 2?
-	return IsModalOpen();
+	// The window system sends a double click event in the place of the second mouse down event.
+	// The root window counts the clicks itself, so this is a normal press.
+	return OnWindowMouseDown(pos, key);
 }
 
 bool URootWindow::OnWindowMouseUp(const Point& pos, EInputKey key)
@@ -344,7 +381,7 @@ bool URootWindow::OnWindowMouseUp(const Point& pos, EInputKey key)
 	if (!focus->bIsSensitive())
 		return IsModalOpen();
 
-	int numClicks = 1; // What is this?
+	int numClicks = UpdateClickCount(focus, key, false);
 	for (UWindow* cur = focus; cur; cur = cur->parentOwner())
 	{
 		if (cur->MouseButtonReleased(relativeX, relativeY, key, numClicks))

@@ -538,11 +538,11 @@ UObject* UWindow::GetTabGroupWindow()
 	return nullptr;
 }
 
+double UWindow::WindowsTickOffset = 0.0;
+
 float UWindow::GetTickOffset()
 {
-	// Not called directly by script
-	LogUnimplemented("Window.GetTickOffset");
-	return 0.0f;
+	return (float)WindowsTickOffset;
 }
 
 UObject* UWindow::GetTopChild(std::optional<bool> bVisibleOnly)
@@ -564,11 +564,7 @@ void UWindow::GrabMouse()
 
 void UWindow::Hide()
 {
-	if (bIsVisible())
-	{
-		bIsVisible() = false;
-		VisibilityChanged(false);
-	}
+	SetVisibility(false);
 }
 
 bool UWindow::IsActorValid(UObject* refActor)
@@ -623,17 +619,16 @@ bool UWindow::IsSensitive(std::optional<bool> bRecurse)
 
 bool UWindow::IsVisible(std::optional<bool> bRecurse)
 {
-	if (bIsVisible())
-		return true;
-	if (bRecurse && *bRecurse)
+	// XWindow::IsVisible: without the recurse flag only the flag of this window counts.
+	// With it (the default), this window and all its parents must be visible.
+	if (bRecurse && !*bRecurse)
+		return bIsVisible();
+	for (UWindow* cur = this; cur; cur = cur->parentOwner())
 	{
-		for (UWindow* cur = firstChild(); cur; cur = cur->nextSibling())
-		{
-			if (cur->IsVisible(bRecurse))
-				return true;
-		}
+		if (!cur->bIsVisible())
+			return false;
 	}
-	return false;
+	return true;
 }
 
 void UWindow::Lower()
@@ -727,7 +722,9 @@ UObject* UWindow::NewChild(UObject* NewClass, std::optional<bool> bShow)
 	child->nextSibling() = nullptr;
 	child->firstChild() = nullptr;
 	child->lastChild() = nullptr;
-	child->bIsVisible() = show;
+	// XWindow::CreateNewWindow: the window is not visible while its InitWindow event runs. It comes into view after that,
+	// so a list that InitWindow filled gets its VisibilityChanged event with the rows in it.
+	child->bIsVisible() = false;
 	child->bIsSensitive() = true;
 	if (lastChild())
 		lastChild()->nextSibling() = child;
@@ -738,6 +735,8 @@ UObject* UWindow::NewChild(UObject* NewClass, std::optional<bool> bShow)
 	ChildAdded(child);
 	for (UWindow* ancestor = parentOwner(); ancestor; ancestor = ancestor->parentOwner())
 		ancestor->DescendantAdded(child);
+	if (show)
+		child->SetVisibility(true);
 	return child;
 }
 
@@ -872,9 +871,43 @@ void UWindow::SetBoldFont(UObject* fn)
 	boldFont() = UObject::Cast<UFont>(fn);
 }
 
+// XWindow::SetVisibility: the parent decides. The script default of ChildRequestedVisibilityChange calls SetChildVisibility.
+void UWindow::SetVisibility(bool bNewVisibility)
+{
+	if (bIsVisible() == bNewVisibility)
+		return;
+	if (UWindow* parent = parentOwner())
+		parent->ChildRequestedVisibilityChange(this, bNewVisibility);
+	else
+		SetChildVisibility(bNewVisibility);
+}
+
 void UWindow::SetChildVisibility(bool bNewVisibility)
 {
-	LogUnimplemented("Window.SetChildVisibility");
+	if (bIsVisible() == bNewVisibility)
+		return;
+
+	bool wasVisible = IsVisible(true);
+	bIsVisible() = bNewVisibility;
+	bool nowVisible = IsVisible(true);
+
+	// The event goes out only when the window comes into view or goes out of view on the screen
+	if (wasVisible != nowVisible)
+	{
+		InvokeVisibilityChange(nowVisible);
+		AskParentForReconfigure();
+	}
+}
+
+// XWindow::InvokeVisibilityChange: this window and each child that has its own visible flag get the event
+void UWindow::InvokeVisibilityChange(bool bNewVisibility)
+{
+	VisibilityChanged(bNewVisibility);
+	for (UWindow* child = firstChild(); child; child = child->nextSibling())
+	{
+		if (child->bIsVisible())
+			child->InvokeVisibilityChange(bNewVisibility);
+	}
 }
 
 void UWindow::SetClientObject(UObject* newClientObject)
@@ -976,12 +1009,7 @@ void UWindow::SetVisibilitySounds(std::optional<UObject*> visSound, std::optiona
 
 void UWindow::Show(std::optional<bool> bShow)
 {
-	bool show = !bShow || *bShow;
-	if (bIsVisible() != show)
-	{
-		bIsVisible() = show;
-		VisibilityChanged(show);
-	}
+	SetVisibility(!bShow || *bShow);
 }
 
 void UWindow::UngrabMouse()

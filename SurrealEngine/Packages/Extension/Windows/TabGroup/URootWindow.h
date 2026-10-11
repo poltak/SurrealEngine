@@ -10,6 +10,7 @@ public:
 	void EnablePositionalSound(std::optional<bool> bEnable);
 	void EnableRendering(std::optional<bool> bRender);
 	UObject* GenerateSnapshot(std::optional<bool> bFilter);
+	int UpdateClickCount(UWindow* window, EInputKey key, bool press);
 	bool IsPositionalSoundEnabled();
 	bool IsRenderingEnabled();
 	void LockMouse(std::optional<bool> bLockMove, std::optional<bool> bLockButton);

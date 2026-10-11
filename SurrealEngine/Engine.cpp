@@ -226,7 +226,10 @@ void Engine::Run()
 		Level->Tick(levelElapsed, m_GamePaused);
 
 		if (dxRootWindow)
+		{
+			UWindow::WindowsTickOffset += levelElapsed;
 			dxRootWindow->Tick(levelElapsed); // Should this maybe be realTimeElapsed?
+		}
 
 		// To do: improve CallEvent so parameter passing isn't this painful
 		UFunction* funcPlayerCalcView = viewport->Actor() ? FindEventFunction(viewport->Actor(), "PlayerCalcView") : nullptr;
