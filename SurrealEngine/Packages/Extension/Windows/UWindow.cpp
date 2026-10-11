@@ -1399,6 +1399,12 @@ bool UWindow::ButtonActivated(UWindow* button)
 	return CallEvent(this, "ButtonActivated", { ExpressionValue::ObjectValue(button) }).ToBool();
 }
 
+// The game scripts have this function for a click with the right mouse button. The Window class has no event for it.
+bool UWindow::ButtonActivatedRight(UWindow* button)
+{
+	return CallEvent(this, "ButtonActivatedRight", { ExpressionValue::ObjectValue(button) }).ToBool();
+}
+
 bool UWindow::ToggleChanged(UWindow* button, bool bNewToggle)
 {
 	return CallEvent(this, "ToggleChanged", {
@@ -1493,6 +1499,17 @@ bool UWindow::EditActivated(UWindow* edit, bool bModified)
 
 void UWindow::DrawWindow(UGC* gc)
 {
+	DrawRawBackground(gc);
+	DrawWindowEvent(gc);
+}
+
+void UWindow::DrawWindowEvent(UGC* gc)
+{
+	CallEvent(this, "DrawWindow", { ExpressionValue::ObjectValue(gc) });
+}
+
+void UWindow::DrawRawBackground(UGC* gc)
+{
 	if (bDrawRawBackground())
 	{
 		gc->SetStyle((EDrawStyle)backgroundStyle());
@@ -1515,8 +1532,6 @@ void UWindow::DrawWindow(UGC* gc)
 		}
 		// DrawDebugBox(gc);
 	}
-
-	CallEvent(this, "DrawWindow", { ExpressionValue::ObjectValue(gc) });
 }
 
 void UWindow::PostDrawWindow(UGC* gc)

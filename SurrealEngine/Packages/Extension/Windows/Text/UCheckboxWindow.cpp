@@ -40,52 +40,94 @@ void UCheckboxWindow::ShowCheckboxOnRightSide(std::optional<bool> bRight)
 
 void UCheckboxWindow::InitWindow()
 {
+	// As XCheckboxWindow::Init
+	textureWidth() = 0.0f;
+	textureHeight() = 0.0f;
+	bRightSide() = false;
+	checkboxColor() = { 255, 255, 255, 255 };
+	checkboxSpacing() = 3.0f;
+	checkboxStyle() = (uint8_t)EDrawStyle::Masked;
+
 	UToggleWindow::InitWindow();
 }
 
+// The size of the checkbox picture, and the width that the picture and the space to the text use
+void UCheckboxWindow::ComputeTextureSize(float& width, float& height, float& usedWidth)
+{
+	if (textureWidth() > 0.0f)
+	{
+		width = textureWidth();
+	}
+	else
+	{
+		width = 0.0f;
+		if (toggleOn())
+			width = std::max(width, (float)toggleOn()->USize());
+		if (toggleOff())
+			width = std::max(width, (float)toggleOff()->USize());
+	}
+
+	if (textureHeight() > 0.0f)
+	{
+		height = textureHeight();
+	}
+	else
+	{
+		height = 0.0f;
+		if (toggleOn())
+			height = std::max(height, (float)toggleOn()->VSize());
+		if (toggleOff())
+			height = std::max(height, (float)toggleOff()->VSize());
+	}
+
+	usedWidth = (width > 0.0f) ? width + checkboxSpacing() : 0.0f;
+}
+
+// As XCheckboxWindow::Draw
 void UCheckboxWindow::DrawWindow(UGC* gc)
 {
-	UWindow::DrawWindow(gc);
+	DrawRawBackground(gc);
+	gc->SetAlignments(HAlign(), VAlign());
+	DrawWindowEvent(gc);
+
+	UTexture* tex = GetToggle() ? toggleOn() : toggleOff();
+
+	float texWidth = 0.0f, texHeight = 0.0f, usedWidth = 0.0f;
+	ComputeTextureSize(texWidth, texHeight, usedWidth);
 
 	float xMargin = hMargin();
 	float yMargin = vMargin();
-	float x = xMargin;
-	float y = yMargin;
-	float w = Width() - 2.0f * xMargin;
-	float h = Height() - 2.0f * yMargin;
-	if (w <= 0.0f || h <= 0.0f)
-		return;
+	float iconY = (float)(int)((Height() - texHeight) * 0.5f);
+	float textWidth = Width() - (xMargin * 2.0f + usedWidth);
+	float textHeight = Height() - yMargin * 2.0f;
 
-	UTexture* tex = GetToggle() ? toggleOn() : toggleOff();
-	if (!tex || !normalFont())
-		return;
-
+	float textX, iconX;
 	if (!bRightSide())
 	{
-		// To do: figure out how checkboxSpacing should be applied
-
-		x += (float)tex->USize();// + checkboxSpacing();
-		if (w - x > 0.0f)
-		{
-			gc->SetAlignments(HAlign(), VAlign());
-			gc->DrawText(x, y, w - x, h, Text());
-		}
-		gc->SetStyle((EDrawStyle)checkboxStyle());
-		gc->SetTileColor(checkboxColor());
-		gc->DrawIcon(xMargin, y + 1.0f /* + (h - (float)tex->VSize()) * 0.5f*/, tex);
+		textX = usedWidth + xMargin;
+		iconX = xMargin;
 	}
-	else // Note: this is never used as ShowCheckboxOnRightSide is never called
+	else
 	{
-		float xExtent = 0.0f, yExtent = 0.0f;
-		gc->GetTextExtent(100000.0f, xExtent, yExtent, Text());
-		gc->SetAlignments(HAlign(), VAlign());
-		gc->DrawText(x, y, w, h, Text());
-		gc->SetStyle((EDrawStyle)checkboxStyle());
-		gc->SetTileColor(checkboxColor());
-		gc->DrawIcon(x + xExtent + checkboxSpacing(), y + 1.0f/* + (h - (float)tex->VSize()) * 0.5f*/, tex);
+		textX = xMargin;
+		iconX = Width() - (usedWidth + xMargin);
 	}
 
-	// DrawDebugBox(gc);
+	if (normalFont() && textWidth > 0.0f && textHeight > 0.0f)
+	{
+		gc->SetTextColor(curTextColor());
+		gc->DrawText(textX, yMargin + 1.0f, textWidth, textHeight, Text());
+	}
+
+	if (tex)
+	{
+		// The picture shows one time at its own size. A picture that is smaller than the given size is not stretched.
+		float drawWidth = std::min(texWidth, (float)tex->USize());
+		float drawHeight = std::min(texHeight, (float)tex->VSize());
+		gc->SetStyle((EDrawStyle)checkboxStyle());
+		gc->SetTileColor(checkboxColor());
+		gc->DrawPattern(iconX, iconY, drawWidth, drawHeight, 0.0f, 0.0f, tex);
+	}
 }
 
 void UCheckboxWindow::ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight)
@@ -109,11 +151,11 @@ void UCheckboxWindow::ParentRequestedPreferredSize(bool bWidthSpecified, float& 
 
 	xExtent = std::max(xExtent, MinWidth());
 
-	if (auto tex = GetToggle() ? toggleOn() : toggleOff())
-	{
-		xExtent += (float)tex->USize() + checkboxSpacing();
-		yExtent = std::max(yExtent, (float)tex->VSize());
-	}
+	// The text gets less space by the width of the picture and the space next to it. The window is not lower than the picture.
+	float texWidth = 0.0f, texHeight = 0.0f, usedWidth = 0.0f;
+	ComputeTextureSize(texWidth, texHeight, usedWidth);
+	xExtent += usedWidth;
+	yExtent = std::max(yExtent, texHeight);
 
 	float xMargin = hMargin();
 	float yMargin = vMargin();
@@ -123,22 +165,4 @@ void UCheckboxWindow::ParentRequestedPreferredSize(bool bWidthSpecified, float& 
 		preferredHeight = yExtent + yMargin * 2.0f;
 
 	UWindow::ParentRequestedPreferredSize(bWidthSpecified, preferredWidth, bHeightSpecified, preferredHeight);
-}
-
-bool UCheckboxWindow::MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks)
-{
-	// Should we capture the mouse here?
-	SetFocusWindow(this);
-	return true;
-}
-
-bool UCheckboxWindow::MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks)
-{
-	SetToggle(!GetToggle());
-	for (UWindow* cur = this; cur != nullptr; cur = cur->parentOwner())
-	{
-		if (ToggleChanged(this, GetToggle()))
-			break;
-	}
-	return true;
 }

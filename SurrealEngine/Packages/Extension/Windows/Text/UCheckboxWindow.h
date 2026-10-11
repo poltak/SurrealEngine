@@ -16,8 +16,6 @@ public:
 	void InitWindow() override;
 	void DrawWindow(UGC* gc) override;
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
-	bool MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks) override;
-	bool MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks) override;
 
 	BitfieldBool bRightSide() { return BoolValue(PropOffsets_CheckboxWindow.bRightSide); }
 	Color& checkboxColor() { return Value<Color>(PropOffsets_CheckboxWindow.checkboxColor); }
@@ -27,4 +25,7 @@ public:
 	float& textureWidth() { return Value<float>(PropOffsets_CheckboxWindow.textureWidth); }
 	UTexture*& toggleOff() { return Value<UTexture*>(PropOffsets_CheckboxWindow.toggleOff); }
 	UTexture*& toggleOn() { return Value<UTexture*>(PropOffsets_CheckboxWindow.toggleOn); }
+
+private:
+	void ComputeTextureSize(float& width, float& height, float& usedWidth);
 };

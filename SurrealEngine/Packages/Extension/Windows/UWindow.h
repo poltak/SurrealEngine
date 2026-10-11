@@ -285,6 +285,7 @@ public:
 	virtual void FocusEnteredDescendant(UWindow* enterWindow);
 	virtual void FocusLeftDescendant(UWindow* leaveWindow);
 	virtual bool ButtonActivated(UWindow* button);
+	virtual bool ButtonActivatedRight(UWindow* button);
 	virtual bool ToggleChanged(UWindow* button, bool bNewToggle);
 	virtual bool BoxOptionSelected(UWindow* box, int buttonNumber);
 	virtual bool ScalePositionChanged(UWindow* scale, int newTickPosition, float newValue, bool bFinal);
@@ -296,6 +297,8 @@ public:
 	virtual bool TextChanged(UWindow* edit, bool bModified);
 	virtual bool EditActivated(UWindow* edit, bool bModified);
 	virtual void DrawWindow(UGC* gc);
+	void DrawRawBackground(UGC* gc);
+	void DrawWindowEvent(UGC* gc);
 	virtual void PostDrawWindow(UGC* gc);
 	virtual void ChildAdded(UWindow* child);
 	virtual void ChildRemoved(UWindow* child);
