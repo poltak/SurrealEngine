@@ -17,6 +17,10 @@ void UActor::TickSwimming(float elapsed)
 	if (!pawn)
 		return;
 
+	// Deus Ex: a player at a ladder in the water climbs it
+	if (TickLadder(pawn, elapsed))
+		return;
+
 	// Update the actor velocity based on the acceleration and zone
 
 	UZoneInfo* zone = Region().Zone;

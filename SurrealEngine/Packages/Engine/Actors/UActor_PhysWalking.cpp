@@ -38,11 +38,78 @@ bool UActor::ShouldAbortJumping(UPawn* pawn, vec3 oldPosition, vec3 stepDownDelt
 	return false;
 }
 
+// Ladders of Deus Ex. In the Engine.dll of the game (build 1112fm), the physics of a player start with this check
+// when the player walks, falls or swims. A wall near the player that has a texture of the group "Ladder" makes the
+// player climb, and the usual physics do not run.
+bool UActor::TickLadder(UPawn* pawn, float elapsed)
+{
+	if (!engine->LaunchInfo.IsDeusEx())
+		return false;
+
+	UPlayerPawn* player = UObject::TryCast<UPlayerPawn>(pawn);
+	if (!player || !IsAtLadder())
+		return false;
+
+	// With a movement key down, the player goes up or down in the direction of the view. The view pitch gets 33.75
+	// degrees more for this, so a level view goes up. The player goes down only with a view that points far down.
+	if (Acceleration() != vec3(0.0f))
+	{
+		Rotator rot = player->ViewRotation();
+		rot.Pitch += (rot.Pitch >= 0) ? 0x1800 : -0x1800;
+		pawn->bIsWalking() = true;
+		Velocity().z = pawn->GroundSpeed() * Coords::Rotation(rot).XAxis.z * 0.5f;
+	}
+
+	TickFlying(elapsed);
+
+	// With no movement key down, the player stays at the same place of the ladder
+	if (Acceleration() == vec3(0.0f))
+		Velocity() = vec3(0.0f);
+	return true;
+}
+
+// The search for a ladder goes from the feet of the player to points at a distance of two collision radii, at nine
+// heights from the feet up to 32 units higher. It looks forward, to the left, to the right and then back. A line
+// that hits level geometry with a texture of the group "Ladder" ends the search.
+bool UActor::IsAtLadder()
+{
+	ULevel* level = XLevel();
+	if (!level || !level->Model)
+		return false;
+
+	vec3 start = Location() - vec3(0.0f, 0.0f, CollisionHeight() * 0.95f);
+	for (int yawOffset : { 0, -0x4000, 0x4000, 0x8000 })
+	{
+		Rotator rot(0, Rotation().Yaw + yawOffset, Rotation().Roll);
+		vec3 end = start + Coords::Rotation(rot).XAxis * (CollisionRadius() * 2.0f);
+		for (int rise = 0; rise <= 32; rise += 4)
+		{
+			// The line stops at level geometry and at movers. Only level geometry gives a texture.
+			for (const CollisionHit& hit : level->Collision.Trace(start, end + vec3(0.0f, 0.0f, (float)rise), 0.0f, 0.0f, true, true, false))
+			{
+				if (hit.Actor && !UObject::TryCast<UMover>(hit.Actor))
+					continue;
+				if (!hit.Actor && hit.Node && hit.Node->Surf >= 0 && (size_t)hit.Node->Surf < level->Model->Surfaces.size())
+				{
+					UTexture* texture = level->Model->Surfaces[hit.Node->Surf].Material;
+					if (texture && texture->Outer() && texture->Outer()->Name == "Ladder")
+						return true;
+				}
+				break;
+			}
+		}
+	}
+	return false;
+}
+
 void UActor::TickWalking(float elapsed)
 {
 	// Only pawns can walk!
 	UPawn* pawn = PreparePawnMovementTick();
 	if (!pawn)
+		return;
+
+	if (TickLadder(pawn, elapsed))
 		return;
 
 	// Update the actor velocity based on the acceleration and zone

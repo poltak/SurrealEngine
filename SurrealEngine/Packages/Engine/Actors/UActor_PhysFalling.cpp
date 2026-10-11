@@ -19,6 +19,10 @@ void UActor::TickFalling(float elapsed)
 	UDecoration* decor = UObject::TryCast<UDecoration>(this);
 	UPawn* pawn = UObject::TryCast<UPawn>(this);
 
+	// Deus Ex: a player who falls onto a ladder holds on to it
+	if (pawn && TickLadder(pawn, elapsed))
+		return;
+
 	// UnrealScript property references
 	vec3& acceleration = Acceleration();
 	vec3& velocity = Velocity();

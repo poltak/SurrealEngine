@@ -392,6 +392,8 @@ public:
 
 	void TickPhysics(float elapsed);
 	void TickWalking(float elapsed);
+	bool TickLadder(UPawn* pawn, float elapsed);
+	bool IsAtLadder();
 	void TickFalling(float elapsed);
 	void TickSwimming(float elapsed);
 	void TickFlying(float elapsed);
