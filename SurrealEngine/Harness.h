@@ -28,6 +28,9 @@ class RenderDevice;
 //   raw DX DY                       relative mouse movement
 //   exec COMMAND                    console command
 //   shot NAME                       write one frame now as NAME.bmp
+//   teleport X Y Z [YAW]            move the player (YAW in Unreal units, 65536 = full turn)
+//   setprop CLASS PROPERTY VALUE    set a property on each live actor of that class
+//   dump CLASS [RADIUS]             log state, location and AI fields of each actor of that class
 //   log TEXT | quit
 class Harness
 {
@@ -47,6 +50,7 @@ public:
 	bool NoGrab = false;
 	double FixedDelta = 0.0; // --fixed-fps=<N>: every frame advances the game by 1/N seconds, at any render speed
 	int Seed = -1;           // --seed=<N>: seed of the random number generator, for runs that repeat exactly
+	bool TraceAI = false;    // --traceai: log each step of AICanSee for a player target
 	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
 
 private:
@@ -71,7 +75,7 @@ private:
 	int shotIndex = 0;
 	std::vector<std::string> pendingShots;
 	std::string winSize;
-	double nextWinSizeCheck = 0.0;
+	double nextWinSizeCheck = 1.5; // not in the first frames: the window manager can resize the new window at that time
 	std::vector<Event> events;
 	size_t nextEvent = 0;
 };

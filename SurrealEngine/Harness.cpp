@@ -7,7 +7,10 @@
 #include "Packages/Engine/UViewport.h"
 #include "Packages/Extension/Windows/TabGroup/URootWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
+#include "Packages/Engine/Actors/Info/ULevelInfo.h"
+#include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Utils/CommandLine.h"
+#include "VM/ExpressionValue.h"
 #include "Utils/Logger.h"
 #include "Utils/File.h"
 #include <algorithm>
@@ -33,6 +36,7 @@ void Harness::Init()
 	NoLauncher = commandline->HasArg({}, "--nolauncher");
 	NoGrab = commandline->HasArg({}, "--nograb");
 	TraceKeys = commandline->HasArg({}, "--tracekeys");
+	TraceAI = commandline->HasArg({}, "--traceai");
 	double fixedFps = commandline->GetArgDouble({}, "--fixed-fps", 0.0);
 	FixedDelta = fixedFps > 0.0 ? 1.0 / fixedFps : 0.0;
 	Seed = commandline->GetArgInt({}, "--seed", -1);
@@ -206,10 +210,86 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	}
 	else if (e.Command == "exec")
 	{
-		BitfieldBool found;
-		std::string result = engine->ConsoleCommand(engine->viewport ? (UObject*)engine->viewport->Actor() : nullptr, e.Args, found);
+		ExpressionValue found = ExpressionValue::BoolValue(false);
+		std::string result = engine->ConsoleCommand(engine->viewport ? (UObject*)engine->viewport->Actor() : nullptr, e.Args, found.ToType<BitfieldBool&>());
+		if (!found.ToBool())
+			LogMessage("Harness: exec: command not found");
 		if (!result.empty())
 			LogMessage("Harness: exec result: " + result);
+	}
+	else if (e.Command == "teleport")
+	{
+		// teleport X Y Z [YAW] : move the player. YAW is in Unreal rotation units (65536 = full turn).
+		float x = 0.0f, y = 0.0f, z = 0.0f;
+		int yaw = 0;
+		std::istringstream parts(e.Args);
+		parts >> x >> y >> z;
+		UPlayerPawn* player = engine->viewport ? UObject::TryCast<UPlayerPawn>(engine->viewport->Actor()) : nullptr;
+		if (player)
+		{
+			player->SetLocation(vec3(x, y, z));
+			if (parts >> yaw)
+			{
+				Rotator r(0, yaw, 0);
+				player->ViewRotation() = r;
+				player->SetRotation(r);
+			}
+		}
+	}
+	else if (e.Command == "setprop")
+	{
+		// setprop <class> <property> <value>: set a property on each live actor of that class
+		std::string className, propName, value;
+		std::istringstream parts(e.Args);
+		parts >> className >> propName;
+		std::getline(parts, value);
+		size_t first = value.find_first_not_of(" \t");
+		value = first == std::string::npos ? std::string() : value.substr(first);
+		int count = 0;
+		for (UActor* actor : engine->Level->Actors)
+		{
+			if (actor && actor->IsA(className) && actor->HasProperty(propName))
+			{
+				actor->SetPropertyFromString(propName, value);
+				count++;
+			}
+		}
+		LogMessage("Harness: setprop changed " + std::to_string(count) + " actors");
+	}
+	else if (e.Command == "dump")
+	{
+		// dump <class> [radius]: log each actor of that class, within the radius of the player if given
+		std::string className;
+		float radius = 0.0f;
+		std::istringstream parts(e.Args);
+		parts >> className >> radius;
+		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
+		for (UActor* actor : engine->Level->Actors)
+		{
+			if (!actor || !actor->IsA(className))
+				continue;
+			float dist = player ? length(actor->Location() - player->Location()) : 0.0f;
+			if (radius > 0.0f && dist > radius)
+				continue;
+			std::string text = "Harness: dump " + actor->Name.ToString() + " state=" + actor->GetStateName().ToString();
+			char buf[160];
+			snprintf(buf, sizeof(buf), " loc=(%.0f %.0f %.0f) dist=%.0f lastRendered=%.1f", actor->Location().x, actor->Location().y, actor->Location().z, dist, engine->LevelInfo->TimeSeconds() - actor->LastRenderTime());
+			text += buf;
+			if (UPawn* pawn = UObject::TryCast<UPawn>(actor))
+			{
+				text += " health=" + std::to_string(pawn->Health());
+				if (pawn->Enemy())
+					text += " enemy=" + pawn->Enemy()->Name.ToString();
+			}
+			for (const char* prop : { "Orders", "Alliance", "EnemyLastSeen", "SeekLevel", "bStasis" })
+			{
+				if (!actor->HasProperty(prop))
+					continue;
+				std::string value = actor->GetPropertyAsString(prop);
+				text += std::string(" ") + prop + "=" + value;
+			}
+			LogMessage(text);
+		}
 	}
 	else if (e.Command == "shot")
 	{
@@ -236,7 +316,7 @@ void Harness::Tick(Engine* engine)
 	// A tiling window manager can resize the window after it opens. Put the requested size back.
 	if (!winSize.empty() && engine->TotalTime >= nextWinSizeCheck)
 	{
-		nextWinSizeCheck = engine->TotalTime + 0.5;
+		nextWinSizeCheck = engine->TotalTime + 1.0;
 		int w = 0, h = 0;
 		if (sscanf(winSize.c_str(), "%dx%d", &w, &h) == 2 && (engine->window->GetPixelWidth() != w || engine->window->GetPixelHeight() != h))
 			engine->window->SetResolution(winSize);
