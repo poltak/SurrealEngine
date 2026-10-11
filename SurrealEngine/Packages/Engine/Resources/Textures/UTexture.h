@@ -27,8 +27,11 @@ public:
 	virtual void Update(float elapsed);
 	virtual void UpdateFrame();
 
+	// UsedMipmaps has the mipmaps that the renderer uses. Load moves them there from one of the two other arrays,
+	// which is then empty: a copy made each texture use its memory two times. UsedIsCompressed tells Save which one it was.
 	TextureFormat UsedFormat = TextureFormat::P8;
 	Array<UnrealMipmap> UsedMipmaps, UncompressedMipmaps, CompressedMipmaps;
+	bool UsedIsCompressed = false;
 	bool TextureModified = false;
 	int RealtimeChangeCount = 0;
 

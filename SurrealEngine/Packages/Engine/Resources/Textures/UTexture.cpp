@@ -41,12 +41,14 @@ void UTexture::Load(ObjectStream* stream)
 		}
 
 		UsedFormat = (TextureFormat)GetByte("CompFormat");
-		UsedMipmaps = CompressedMipmaps;
+		UsedIsCompressed = true;
+		UsedMipmaps = std::move(CompressedMipmaps);
 	}
 	else
 	{
 		UsedFormat = (TextureFormat)GetByte("Format");
-		UsedMipmaps = UncompressedMipmaps;
+		UsedIsCompressed = false;
+		UsedMipmaps = std::move(UncompressedMipmaps);
 	}
 }
 
@@ -54,8 +56,11 @@ void UTexture::Save(PackageStreamWriter* stream)
 {
 	UBitmap::Save(stream);
 
-	stream->WriteUInt8((uint8_t)UncompressedMipmaps.size());
-	for (const UnrealMipmap& mipmap : UncompressedMipmaps)
+	const Array<UnrealMipmap>& uncompressedMipmaps = UsedIsCompressed ? UncompressedMipmaps : UsedMipmaps;
+	const Array<UnrealMipmap>& compressedMipmaps = UsedIsCompressed ? UsedMipmaps : CompressedMipmaps;
+
+	stream->WriteUInt8((uint8_t)uncompressedMipmaps.size());
+	for (const UnrealMipmap& mipmap : uncompressedMipmaps)
 	{
 		if (stream->GetVersion() >= 63)
 			stream->BeginSkipOffset();
@@ -71,8 +76,8 @@ void UTexture::Save(PackageStreamWriter* stream)
 
 	if (HasProperty("bHasComp") && GetBool("bHasComp"))
 	{
-		stream->WriteUInt8((uint8_t)CompressedMipmaps.size());
-		for (UnrealMipmap& mipmap : CompressedMipmaps)
+		stream->WriteUInt8((uint8_t)compressedMipmaps.size());
+		for (const UnrealMipmap& mipmap : compressedMipmaps)
 		{
 			if (stream->GetVersion() >= 68)
 				stream->BeginSkipOffset();
