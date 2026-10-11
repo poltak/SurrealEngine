@@ -762,6 +762,16 @@ std::string PackageManager::GetIniValue(NameString iniName, const NameString& se
 	return LoadIniFile(iniName)->GetValue(sectionName, keyName, default_value, index);
 }
 
+bool PackageManager::HasIniKey(NameString iniName, const NameString& sectionName, const NameString& keyName)
+{
+	for (const NameString& key : LoadIniFile(iniName)->GetKeys(sectionName))
+	{
+		if (key == keyName)
+			return true;
+	}
+	return false;
+}
+
 Array<std::string> PackageManager::GetIniValues(NameString iniName, const NameString& sectionName, const NameString& keyName, Array<std::string> default_values)
 {
 	return LoadIniFile(iniName)->GetValues(sectionName, keyName, default_values);

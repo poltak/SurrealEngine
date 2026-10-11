@@ -1755,17 +1755,13 @@ std::string Engine::InputIniSection() const
 
 // Reads a value of the input class from the user ini.
 // A new copy of Deus Ex has only the section of the base class, Engine.Input. The section of Extension.InputExt
-// comes when the game saves its bindings. A value in it replaces the value of the base class.
+// comes when the game saves its bindings. A line in it replaces the value of the base class, also when the line has
+// no value: that is a key from which the player took the binding away.
 std::string Engine::GetInputIniValue(const std::string& key)
 {
-	static const std::string missing = "\x01missing";
 	std::string section = InputIniSection();
-	if (section != "Engine.Input")
-	{
-		std::string value = packages->GetIniValue("user", section, key, missing);
-		if (value != missing)
-			return value;
-	}
+	if (section != "Engine.Input" && packages->HasIniKey("user", section, key))
+		return packages->GetIniValue("user", section, key);
 	return packages->GetIniValue("user", "Engine.Input", key);
 }
 

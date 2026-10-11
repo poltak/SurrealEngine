@@ -76,6 +76,8 @@ public:
 	std::unique_ptr<IniFile> GetSystemIniFile();
 	Array<NameString> GetIniKeysFromSection(NameString iniName, const NameString& sectionName);
 	std::string GetIniValue(NameString iniName, const NameString& sectionName, const NameString& keyName, std::string default_value = "", const int index = 0);
+	// True if the section has a line for the key. GetIniValue gives the default value also for a key with no value.
+	bool HasIniKey(NameString iniName, const NameString& sectionName, const NameString& keyName);
 	Array<std::string> GetIniValues(NameString iniName, const NameString& sectionName, const NameString& keyName, Array<std::string> default_values = {});
 	std::string GetDefaultIniValue(const NameString& sectionName, const NameString& keyName, std::string default_value = "", const int index = 0);
 	Array<std::string> GetDefaultIniValues(const NameString& sectionName, const NameString& keyName, Array<std::string> default_values = {});
