@@ -7,6 +7,7 @@ class UClipWindow : public UTabGroupWindow
 public:
 	using UTabGroupWindow::UTabGroupWindow;
 
+	void InitWindow() override;
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
 	void ConfigurationChanged() override;
 

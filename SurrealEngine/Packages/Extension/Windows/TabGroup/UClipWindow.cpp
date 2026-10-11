@@ -21,6 +21,17 @@ void UClipWindow::ParentRequestedPreferredSize(bool bWidthSpecified, float& pref
 	UTabGroupWindow::ParentRequestedPreferredSize(bWidthSpecified, preferredWidth, bHeightSpecified, preferredHeight);
 }
 
+void UClipWindow::InitWindow()
+{
+	// As XClipWindow::Init
+	bForceChildWidth() = false;
+	bForceChildHeight() = false;
+	bSnapToUnits() = true;
+	bFillWindow() = true;
+
+	UTabGroupWindow::InitWindow();
+}
+
 void UClipWindow::ConfigurationChanged()
 {
 	if (auto child = UObject::Cast<UWindow>(GetChild()))
@@ -32,6 +43,15 @@ void UClipWindow::ConfigurationChanged()
 			w = child->QueryPreferredWidth(h);
 		else if (!bForceChildWidth() && !bForceChildHeight())
 			child->QueryPreferredSize(w, h);
+
+		// As XClipWindow::ReconfigureChild: a child that is smaller than this window fills it. An empty text field
+		// then has the size of its clip window, and a click in the clip window reaches the field.
+		if (bFillWindow())
+		{
+			w = std::max(w, Width());
+			h = std::max(h, Height());
+		}
+
 		child->ConfigureChild(ChildPos.x, ChildPos.y, w, h);
 	}
 
