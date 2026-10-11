@@ -12,8 +12,7 @@
 #include "Packages/Engine/Resources/Level/UPolys.h"
 #include "VM/ScriptCall.h"
 #include "Engine.h"
-#include "Utils/CommandLine.h"
-#include "Utils/Logger.h"
+#include "Harness.h"
 
 RenderSubsystem::RenderSubsystem(RenderDevice* renderdevice) : Device(renderdevice)
 {
@@ -59,39 +58,7 @@ void RenderSubsystem::DrawGame(float levelTimeElapsed)
 
 	Device->Unlock(true);
 
-	// Local test harness (fork only): write the frame as a 32 bit BMP at a fixed interval.
-	// ReadPixels submits the command buffer, so this must run after Unlock (outside the scene render pass).
-	if (commandline)
-	{
-		static const std::string shotDir = commandline->GetArg({}, "--shots");
-		static const double shotInterval = commandline->GetArgDouble({}, "--shot-interval", 5.0);
-		static double nextShot = commandline->GetArgDouble({}, "--shot-first", 2.0);
-		static int shotIndex = 0;
-		if (!shotDir.empty() && engine->TotalTime >= nextShot)
-		{
-			nextShot = engine->TotalTime + shotInterval;
-			int w = engine->window->GetPixelWidth();
-			int h = engine->window->GetPixelHeight();
-			std::vector<TextureColor> pixels((size_t)w * h);
-			Device->ReadPixels(pixels.data());
-			char name[64];
-			snprintf(name, sizeof(name), "/shot%03d.bmp", shotIndex++);
-			if (FILE* f = fopen((shotDir + name).c_str(), "wb"))
-			{
-				uint32_t dataSize = (uint32_t)w * h * 4;
-				uint8_t hdr[54] = { 'B', 'M' };
-				auto put32 = [&](int o, uint32_t v) { memcpy(hdr + o, &v, 4); };
-				auto put16 = [&](int o, uint16_t v) { memcpy(hdr + o, &v, 2); };
-				put32(2, 54 + dataSize); put32(10, 54); put32(14, 40);
-				put32(18, (uint32_t)w); put32(22, (uint32_t)-h);
-				put16(26, 1); put16(28, 32); put32(34, dataSize);
-				fwrite(hdr, 1, 54, f);
-				fwrite(pixels.data(), 1, dataSize, f);
-				fclose(f);
-				LogMessage(std::string("Harness: wrote ") + name);
-			}
-		}
-	}
+	Harness::Get().AfterFrame(engine, Device);
 }
 
 void RenderSubsystem::DrawEditorViewport()

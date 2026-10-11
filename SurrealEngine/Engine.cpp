@@ -2,6 +2,7 @@
 #include "Precomp.h"
 #include "Engine.h"
 #include "Utils/CommandLine.h"
+#include "Harness.h"
 #include "Utils/File.h"
 #include "Utils/StrTools.h"
 #include "Utils/SHA1Sum.h"
@@ -117,11 +118,9 @@ Engine::~Engine()
 }
 
 
-// Local test harness (fork only): --nograb keeps the mouse cursor free
 static bool HarnessNoGrab()
 {
-	static const bool nograb = commandline && commandline->HasArg({}, "--nograb");
-	return nograb;
+	return Harness::Get().NoGrab;
 }
 
 void Engine::Run()
@@ -203,6 +202,8 @@ void Engine::Run()
 		LevelInfo->Second() = timedesc->tm_sec;
 		LevelInfo->Millisecond() = 0; // No timedesc equivalent for LevelInfo->Millisecond()
 
+		Harness::Get().Tick(this);
+
 		UpdateInput(realTimeElapsed);
 
 		SetPause(!LevelInfo->Pauser().empty());
@@ -245,13 +246,6 @@ void Engine::Run()
 
 		viewport->SetViewportRect(0, 0, engine->window->GetPixelWidth(), engine->window->GetPixelHeight());
 		render->DrawGame(levelElapsed);
-
-		// Local test harness (fork only)
-		{
-			static const double exitAfter = commandline ? commandline->GetArgDouble({}, "--exit-after", 0.0) : 0.0;
-			if (exitAfter > 0.0 && TotalTime >= exitAfter)
-				quit = true;
-		}
 
 		// Save the game if there is a request for it
 		if (SaveGameInfo.SaveGameSlot != DONT_SAVE_GAME)
@@ -1373,10 +1367,12 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 	}
 	else if (command == "setres" && args.size() == 2)
 	{
+		LogMessage("Console command: setres " + args[1]);
 		window->SetResolution(args[1]);
 	}
 	else if (command == "togglefullscreen")
 	{
+		LogMessage("Console command: togglefullscreen");
 		bool isFullscreen = window->IsFullscreen();
 
 		// Get the resolution to SWITCH TO
@@ -1732,6 +1728,8 @@ void Engine::OnWindowKeyUp(EInputKey key)
 
 void Engine::OnWindowGeometryChanged()
 {
+	if (window)
+		LogMessage("Window geometry changed: " + std::to_string(window->GetPixelWidth()) + "x" + std::to_string(window->GetPixelHeight()) + " pixels");
 }
 
 void Engine::OnWindowClose()

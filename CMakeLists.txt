@@ -34,6 +34,8 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/Precomp.h
 	SurrealEngine/GameApp.cpp
 	SurrealEngine/GameApp.h
+	SurrealEngine/Harness.cpp
+	SurrealEngine/Harness.h
 	SurrealEngine/EditorApp.cpp
 	SurrealEngine/EditorApp.h
 	SurrealEngine/DebuggerApp.cpp

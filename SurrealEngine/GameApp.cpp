@@ -4,6 +4,7 @@
 #include "Utils/Logger.h"
 #include "Utils/CommandLine.h"
 #include "GameApp.h"
+#include "Harness.h"
 #include "GameFolder.h"
 #include "Engine.h"
 #include "UI/WidgetResourceData.h"
@@ -17,14 +18,16 @@ int GameApp::main(Array<std::string> args)
 {
 	InitWidgetResources("dark");
 
-	bool harnessNoLauncher = false; // must outlive the try block: "cmd" is gone when the catch handler runs
-
 	try
 	{
 		CommandLine cmd(args);
 		commandline = &cmd;
 
-		if (ErrorWindow::CheckCrashReporter())
+		// Test harness of the deus-ex-mac fork, see Harness.h
+		Harness::Get().Init();
+
+		// A harness run must not open the crash report window: it would stay on the screen with no person to close it.
+		if (!Harness::Get().NoLauncher && ErrorWindow::CheckCrashReporter())
 			return 0;
 
 		if (commandline->HasArg("-h", "--help"))
@@ -33,23 +36,9 @@ int GameApp::main(Array<std::string> args)
 			return 0;
 		}
 
-		// Local test harness (fork only): --logfile=<path> streams the log to a file,
-		// --nolauncher starts the first game folder given on the command line.
-		std::string harnessLogFile = commandline->GetArg({}, "--logfile");
-		if (!harnessLogFile.empty())
-		{
-			static FILE* logfile = fopen(harnessLogFile.c_str(), "w");
-			Logger::Get()->SetCallback([](const LogMessageLine& line) {
-				if (!logfile) return;
-				fprintf(logfile, "[%.2f] %s: %s\n", line.Time, line.Source.empty() ? "<SE>" : line.Source.c_str(), line.Text.c_str());
-				fflush(logfile);
-			});
-		}
-
 		int selectedGameIndex = -1;
-		if (commandline->HasArg({}, "--nolauncher"))
+		if (Harness::Get().NoLauncher)
 		{
-			harnessNoLauncher = true;
 			GameFolderSelection::UpdateList();
 			selectedGameIndex = GameFolderSelection::Games.empty() ? -1 : 0;
 			if (selectedGameIndex < 0)
@@ -68,11 +57,10 @@ int GameApp::main(Array<std::string> args)
 	}
 	catch (const std::exception& e)
 	{
-		commandline = nullptr;
-		if (harnessNoLauncher)
+		commandline = nullptr; // "cmd" is gone when this handler runs
+		if (Harness::Get().NoLauncher)
 		{
-			LogMessage(std::string("FATAL: ") + e.what());
-			std::cerr << "FATAL: " << e.what() << std::endl;
+			Harness::Get().LogFatal(e.what());
 			return 1;
 		}
 		ErrorWindow::ExecModal(e.what(), Logger::Get()->GetLog());
