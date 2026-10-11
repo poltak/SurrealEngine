@@ -14,6 +14,7 @@
 #include "Packages/Core/UFunction.h"
 #include "Packages/Core/USubsystem.h"
 #include "Packages/Core/Properties/UObjectProperty.h"
+#include "Packages/Core/Properties/UClassProperty.h"
 #include "Packages/Core/Properties/UStringProperty.h"
 #include "Packages/Core/Properties/UFloatProperty.h"
 #include "Packages/Core/Properties/UIntProperty.h"
@@ -2216,6 +2217,19 @@ bool Engine::ExecCommand(const Array<std::string>& args)
 					case ExpressionValueType::ValueFloat: vmArgs.push_back(ExpressionValue::FloatValue((float)std::atof(arg.c_str()))); break;
 					case ExpressionValueType::ValueString: vmArgs.push_back(ExpressionValue::StringValue(arg)); break;
 					case ExpressionValueType::ValueName: vmArgs.push_back(ExpressionValue::NameValue(arg)); break;
+					case ExpressionValueType::ValueObject:
+					{
+						// A class argument, for example "AugAdd AugVision". The name can have a package in front of it.
+						// Other object arguments get no object.
+						UClass* cls = nullptr;
+						if (UObject::TryCast<UClassProperty>(prop))
+						{
+							size_t dot = arg.find_last_of('.');
+							cls = FindLoadedClass(dot != std::string::npos ? arg.substr(dot + 1) : arg);
+						}
+						vmArgs.push_back(ExpressionValue::ObjectValue(cls));
+						break;
+					}
 					default: LogMessage("Unsupported value type found in Engine.ExecCommand"); return false;
 					}
 				}
@@ -2234,6 +2248,7 @@ bool Engine::ExecCommand(const Array<std::string>& args)
 					case ExpressionValueType::ValueFloat: vmArgs.push_back(ExpressionValue::FloatValue(0.0f)); break;
 					case ExpressionValueType::ValueString: vmArgs.push_back(ExpressionValue::StringValue({})); break;
 					case ExpressionValueType::ValueName: vmArgs.push_back(ExpressionValue::NameValue({})); break;
+					case ExpressionValueType::ValueObject: vmArgs.push_back(ExpressionValue::ObjectValue(nullptr)); break;
 					default: LogMessage("Unsupported value type found in Engine.ExecCommand"); return false;
 					}
 				}
