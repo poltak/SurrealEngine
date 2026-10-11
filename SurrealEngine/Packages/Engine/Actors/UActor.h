@@ -454,7 +454,7 @@ public:
 	bool Move(const vec3& delta);
 	bool MoveSmooth(const vec3& delta);
 
-	bool IsBasedOn(UActor* other);
+	bool IsBasedOn(UActor* other); // True when the other actor stands on this actor, directly or through other actors
 
 	// Deus Ex: the flight of an object that falls and bounces. Returns the flight time, or 0 if the object does not land.
 	float ParabolicTrace(vec3& finalLocation, const vec3& startLocation, const vec3& startVelocity, float maxTime, float elasticity, bool bounce, float landingSpeed, const vec3& cylinder, bool checkActors, float granularity);

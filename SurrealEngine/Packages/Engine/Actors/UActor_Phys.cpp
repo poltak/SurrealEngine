@@ -114,7 +114,9 @@ void UActor::FindBase()
 		}
 	}
 
-	if (ActorBase() != newBase && (!newBase || !newBase->IsBasedOn(this)))
+	// An actor that stands on this actor cannot be its base. IsBasedOn(other) of this engine is true when the other
+	// actor stands on this one, which is the reverse of AActor::IsBasedOn in the original.
+	if (ActorBase() != newBase && (!newBase || !IsBasedOn(newBase)))
 		SetSupportBase(newBase);
 }
 
