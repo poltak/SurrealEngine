@@ -71,6 +71,7 @@ void Harness::Init()
 	TraceAI = commandline->HasArg({}, "--traceai");
 	CheckNatives = commandline->HasArg({}, "--checknatives");
 	ShowStats = commandline->HasArg({}, "--stats");
+	KeepLevelData = commandline->HasArg({}, "--keep-level-data");
 	double fixedFps = commandline->GetArgDouble({}, "--fixed-fps", 0.0);
 	FixedDelta = fixedFps > 0.0 ? 1.0 / fixedFps : 0.0;
 	Seed = commandline->GetArgInt({}, "--seed", -1);
@@ -438,6 +439,13 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
 		if (player && !e.Args.empty())
 			NPlayerPawn::ClientTravel(player, e.Args, (uint8_t)ETravelType::TRAVEL_Relative, true);
+	}
+	else if (e.Command == "clearcurrent")
+	{
+		// clearcurrent: remove the map states of the current game (Save/Current), as a new game does it.
+		// A test that starts a map directly and then travels uses this, so that it does not get the map states of an older run.
+		if (engine->LaunchInfo.IsDeusEx())
+			engine->DXDeleteSaveGameFiles(engine->DXSaveDirectory(-2));
 	}
 	else if (e.Command == "mem")
 	{

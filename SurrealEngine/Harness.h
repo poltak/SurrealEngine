@@ -58,6 +58,7 @@ public:
 	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
 	bool CheckNatives = false; // --checknatives: log each native script function that has no handler, then quit
 	bool ShowStats = false;  // --stats: show the frame rate and object counts on the screen (same as the console command "timedemo 1")
+	bool KeepLevelData = false; // --keep-level-data: do not free the lightmaps and the geometry of a level that the engine leaves
 
 private:
 	struct Event
