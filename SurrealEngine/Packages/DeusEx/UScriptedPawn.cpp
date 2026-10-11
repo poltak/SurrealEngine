@@ -344,6 +344,11 @@ uint8_t UScriptedPawn::GetAllianceType(const NameString& AllianceName)
 
 uint8_t UScriptedPawn::GetPawnAllianceType(UPawn* QueryPawn)
 {
+	// As AScriptedPawn::GetPawnAllianceType in DeusEx.dll: no pawn is neutral. The script calls this with None when
+	// the instigator of an AI event is not a pawn.
+	if (!QueryPawn)
+		return (uint8_t)EAllianceType::ALLIANCE_Neutral;
+
 	if (UScriptedPawn* qp = UObject::TryCast<UScriptedPawn>(QueryPawn))
 	{
 		uint8_t othersAlliance = qp->GetAllianceType(Alliance());
