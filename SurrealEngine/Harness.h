@@ -17,6 +17,8 @@ class RenderDevice;
 //   --shot-first=<s>        time of the first automatic frame
 //   --nograb                keep the mouse cursor free
 //   --winsize=<W>x<H>       keep the window at this size in pixels
+//   --fixed-fps=<N>         advance the game by 1/N seconds per frame (same result at any render speed)
+//   --seed=<N>              seed of the random number generator
 //   --script=<path>         timed input script, one event per line: "<seconds> <command> [args]"
 //
 // Script commands (X and Y are fractions of the window, 0..1):
@@ -43,6 +45,8 @@ public:
 
 	bool NoLauncher = false;
 	bool NoGrab = false;
+	double FixedDelta = 0.0; // --fixed-fps=<N>: every frame advances the game by 1/N seconds, at any render speed
+	int Seed = -1;           // --seed=<N>: seed of the random number generator, for runs that repeat exactly
 	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
 
 private:

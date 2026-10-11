@@ -33,6 +33,9 @@ void Harness::Init()
 	NoLauncher = commandline->HasArg({}, "--nolauncher");
 	NoGrab = commandline->HasArg({}, "--nograb");
 	TraceKeys = commandline->HasArg({}, "--tracekeys");
+	double fixedFps = commandline->GetArgDouble({}, "--fixed-fps", 0.0);
+	FixedDelta = fixedFps > 0.0 ? 1.0 / fixedFps : 0.0;
+	Seed = commandline->GetArgInt({}, "--seed", -1);
 	exitAfter = commandline->GetArgDouble({}, "--exit-after", 0.0);
 	shotDir = commandline->GetArg({}, "--shots");
 	shotInterval = commandline->GetArgDouble({}, "--shot-interval", 0.0);

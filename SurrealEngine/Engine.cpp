@@ -73,6 +73,8 @@ Engine::Engine(GameLaunchInfo launchinfo) : LaunchInfo(launchinfo)
 	packages = std::make_unique<PackageManager>(LaunchInfo);
 
 	std::srand((unsigned int)std::time(nullptr));
+	if (Harness::Get().Seed >= 0)
+		std::srand((unsigned int)Harness::Get().Seed);
 
 	auto transientpkg = packages->GetTransientPackage();
 	auto enginepkg = packages->GetPackage("Engine");
@@ -1061,6 +1063,8 @@ float Engine::CalcTimeElapsed()
 
 	uint64_t deltaTime = currentTime - lastTime;
 	lastTime = currentTime;
+	if (Harness::Get().FixedDelta > 0.0)
+		return (float)Harness::Get().FixedDelta;
 	return clamp(deltaTime / 1'000'000.0f, 0.0f, 1.0f);
 }
 
