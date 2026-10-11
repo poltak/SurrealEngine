@@ -34,11 +34,21 @@ void ULevelBase::Save(PackageStreamWriter* stream)
 {
 	UObject::Save(stream);
 
-	int32_t count = (int32_t)Actors.size();
+	// A destroyed actor leaves an empty slot in the list. The saved level does not keep those slots
+	// (the original calls CompactActors before it saves), or the list grows with each visit of a map.
+	// The first two slots stay as they are: the level info and the default brush.
+	Array<UActor*> savedActors;
+	for (size_t i = 0; i < Actors.size(); i++)
+	{
+		if (Actors[i] || i < 2)
+			savedActors.push_back(Actors[i]);
+	}
+
+	int32_t count = (int32_t)savedActors.size();
 	int32_t maxcount = count;
 	stream->WriteInt32(count);
 	stream->WriteInt32(maxcount);
-	for (UActor* actor : Actors)
+	for (UActor* actor : savedActors)
 		stream->WriteObject(actor);
 
 	stream->WriteString(Protocol);
