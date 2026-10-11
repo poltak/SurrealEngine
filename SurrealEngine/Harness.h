@@ -46,6 +46,9 @@ class UActor;
 //                                   child position of a clip window
 //   surfaces GROUP [COUNT]          log the level surfaces with a texture of that group (middle point, normal,
 //                                   radius). The group Ladder gives the ladders of a map.
+//   texts                           log each line of text that the interface draws in the next frame, with its
+//                                   place in interface units. This shows text that is not in a text window,
+//                                   for example the ammo numbers of the HUD.
 //   cursor                          log the mouse cursor that the interface shows: texture, hot spot, color,
 //                                   shadow texture and the class of the window under the mouse
 //   log TEXT | quit
@@ -78,6 +81,9 @@ public:
 	int Seed = -1;           // --seed=<N>: seed of the random number generator, for runs that repeat exactly
 	bool Mute = false;       // --mute: no sound output
 	bool TraceAI = false;    // --traceai: log each step of AICanSee for a player target
+	bool CaptureTexts() const { return captureTextFrames > 0; }
+	void LogDrawnText(float x, float y, const std::string& text);
+
 	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
 	bool CheckNatives = false; // --checknatives: log each native script function that has no handler, then quit
 	bool ShowStats = false;  // --stats: show the frame rate and object counts on the screen (same as the console command "timedemo 1")
@@ -105,6 +111,7 @@ private:
 	double nextShot = 0.0;
 	int shotIndex = 0;
 	std::vector<std::string> pendingShots;
+	int captureTextFrames = 0;
 	UActor* aimTarget = nullptr;
 	double aimUntil = 0.0;
 	std::vector<class UTexture*> shownTextures;

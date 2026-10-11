@@ -1,5 +1,6 @@
 
 #include "Precomp.h"
+#include "Harness.h"
 #include "UGC.h"
 #include "Engine.h"
 #include "Render/RenderSubsystem.h"
@@ -967,6 +968,14 @@ Array<TextBlock> UGC::FindTextBlocks(const std::string& text, const Color& color
 
 void UGC::DrawTextBlockRange(float x, float y, const Array<TextBlock>& textBlocks, size_t start, size_t end, UFont* font, uint32_t polyflags)
 {
+	if (Harness::Get().CaptureTexts())
+	{
+		std::string line;
+		for (size_t i = start; i < end; i++)
+			line += textBlocks[i].text;
+		Harness::Get().LogDrawnText(x, y, line);
+	}
+
 	for (size_t i = start; i < end; i++)
 	{
 		for (char c : textBlocks[i].text)

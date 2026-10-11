@@ -726,6 +726,11 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			Dump::Window(root, root, 0);
 		}
 	}
+	else if (e.Command == "texts")
+	{
+		// texts: log each line of text that the interface draws in the frame that comes now
+		captureTextFrames = 1;
+	}
 	else if (e.Command == "cursor")
 	{
 		// cursor: log the mouse cursor that the interface shows: the texture, its hot spot, its color, its shadow
@@ -957,12 +962,29 @@ static void CheckNativeFunctions(Engine* engine)
 		LogMessage("Harness: checknatives missing: " + name);
 }
 
+void Harness::LogDrawnText(float x, float y, const std::string& text)
+{
+	std::string shown = text.substr(0, 60);
+	for (char& c : shown)
+	{
+		if (c == '\n' || c == '\r')
+			c = ' ';
+	}
+	char buf[200];
+	snprintf(buf, sizeof(buf), "Harness: text x=%d y=%d \"%s\"", (int)std::lround(x), (int)std::lround(y), shown.c_str());
+	LogMessage(buf);
+}
+
 void Harness::Tick(Engine* engine)
 {
 	if (!initialized)
 		return;
 
 	perfFrames++;
+
+	// The texts command logs the text of one frame: the frame that comes after the command
+	if (captureTextFrames > 0)
+		captureTextFrames--;
 
 	if (CheckNatives)
 	{
