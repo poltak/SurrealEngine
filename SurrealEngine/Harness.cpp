@@ -486,6 +486,16 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 				if (!actor->HasProperty(prop))
 					continue;
 				std::string value = actor->GetPropertyAsString(prop);
+
+				// A fixed-size array: show all elements
+				UProperty* member = actor->GetMemberProperty(prop);
+				if (member && member->ArrayDimension > 1)
+				{
+					value = "(";
+					for (int i = 0; i < member->ArrayDimension; i++)
+						value += (i > 0 ? "," : "") + member->PrintValue(member->GetElement(actor->PropertyData.Ptr(member), i));
+					value += ")";
+				}
 				text += " " + prop + "=" + value;
 			}
 			LogMessage(text);
