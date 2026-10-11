@@ -2287,7 +2287,13 @@ bool Engine::ExecCommand(const Array<std::string>& args)
 					case ExpressionValueType::Nothing: vmArgs.push_back(ExpressionValue::NothingValue()); break;
 					case ExpressionValueType::ValueByte: vmArgs.push_back(ExpressionValue::ByteValue(std::atoi(arg.c_str()))); break;
 					case ExpressionValueType::ValueInt: vmArgs.push_back(ExpressionValue::IntValue(std::atoi(arg.c_str()))); break;
-					case ExpressionValueType::ValueBool: vmArgs.push_back(ExpressionValue::BoolValue(arg == "1" || arg == "true")); break;
+					case ExpressionValueType::ValueBool:
+					{
+						// The words of a bool are not case sensitive: "GoalSetPrimary Name True"
+						NameString word(arg);
+						vmArgs.push_back(ExpressionValue::BoolValue(word == "1" || word == "true" || word == "yes" || word == "on"));
+						break;
+					}
 					case ExpressionValueType::ValueFloat: vmArgs.push_back(ExpressionValue::FloatValue((float)std::atof(arg.c_str()))); break;
 					case ExpressionValueType::ValueString: vmArgs.push_back(ExpressionValue::StringValue(arg)); break;
 					case ExpressionValueType::ValueName: vmArgs.push_back(ExpressionValue::NameValue(arg)); break;
