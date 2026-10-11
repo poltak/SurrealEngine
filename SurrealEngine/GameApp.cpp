@@ -37,7 +37,17 @@ int GameApp::main(Array<std::string> args)
 		}
 
 		int selectedGameIndex = -1;
-		if (Harness::Get().NoLauncher)
+		if (commandline->HasArg({}, "--direct"))
+		{
+			// Start the game in the folder from the command line with no launcher window.
+			// The Deus Ex app for macOS uses this: its start script finds the game folder of the player.
+			// The engine must not start a different game that it finds on this computer.
+			GameFolderSelection::UpdateList(true);
+			if (GameFolderSelection::Games.empty())
+				Exception::Throw("No known game was found in the game folder. The folder must have the System and Maps folders of the game in it.");
+			selectedGameIndex = 0;
+		}
+		else if (Harness::Get().NoLauncher)
 		{
 			GameFolderSelection::UpdateList();
 			selectedGameIndex = GameFolderSelection::Games.empty() ? -1 : 0;

@@ -30,7 +30,8 @@ struct GameLaunchInfo
 class GameFolderSelection
 {
 public:
-	static void UpdateList();
+	// commandLineOnly: use only the folders from the command line, do not search this computer for other games
+	static void UpdateList(bool commandLineOnly = false);
 	static GameLaunchInfo GetLaunchInfo(int selectedGame);
 
 	static Array<GameLaunchInfo> Games;

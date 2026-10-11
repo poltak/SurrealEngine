@@ -10,7 +10,7 @@
 
 Array<GameLaunchInfo> GameFolderSelection::Games;
 
-void GameFolderSelection::UpdateList()
+void GameFolderSelection::UpdateList(bool commandLineOnly)
 {
 	Games.clear();
 
@@ -20,6 +20,9 @@ void GameFolderSelection::UpdateList()
 		if (!game.gameName.empty())
 			Games.push_back(game);
 	}
+
+	if (commandLineOnly)
+		return;
 
 	if (Games.empty())
 	{
