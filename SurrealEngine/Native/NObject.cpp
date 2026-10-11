@@ -97,7 +97,7 @@ void NObject::RegisterFunctions()
 	RegisterVMNativeFunc_3("Object", "GreaterGreater_VectorRotator", &NObject::GreaterGreater_VectorRotator, 276);
 	RegisterVMNativeFunc_3("Object", "Greater_FloatFloat", &NObject::Greater_FloatFloat, 177);
 	RegisterVMNativeFunc_3("Object", "Greater_IntInt", &NObject::Greater_IntInt, 151);
-	RegisterVMNativeFunc_3("Object", "Greater_StrStr", &NObject::Greater_StrStr, 1186);
+	RegisterVMNativeFunc_3("Object", "Greater_StrStr", &NObject::Greater_StrStr, 116);
 	if (engine->LaunchInfo.IsUnreal1_227())
 		RegisterVMNativeFunc_4("Object", "InStr", &NObject::InStr_U227, 126);
 	else
@@ -279,6 +279,9 @@ void NObject::RegisterFunctions()
 		RegisterVMNativeFunc_2("Object", "AllObjects", &NObject::AllObjects_DeusEx, 1001);
 		RegisterVMNativeFunc_1("Object", "CriticalDelete", &NObject::CriticalDelete, 751);
 		RegisterVMNativeFunc_3("Object", "GetConfig", &NObject::GetConfig_DeusEx, 0);
+		RegisterVMNativeFunc_2("Object", "clock", &NObject::Clock_DeusEx, 1005);
+		RegisterVMNativeFunc_2("Object", "unclock", &NObject::Unclock_DeusEx, 1006);
+		RegisterVMNativeFunc_3("Object", "CyclesToSeconds", &NObject::CyclesToSeconds_DeusEx, 1007);
 	}
 
 	// Package 61 stuff
@@ -582,6 +585,28 @@ void NObject::CriticalDelete(UObject* Self, UObject* myObject)
 {
 	// The original deletes the object immediately. This engine keeps objects until its garbage collector runs,
 	// and the scripts drop their reference after the call, so there is nothing to do.
+}
+
+// The scripts use clock and unclock to measure the time of a piece of code. The unit here is one microsecond.
+static int ClockMicroseconds()
+{
+	using namespace std::chrono;
+	return (int)duration_cast<microseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+void NObject::Clock_DeusEx(UObject* Self, int& cycles)
+{
+	cycles -= ClockMicroseconds();
+}
+
+void NObject::Unclock_DeusEx(UObject* Self, int& cycles)
+{
+	cycles += ClockMicroseconds();
+}
+
+void NObject::CyclesToSeconds_DeusEx(UObject* Self, int cycles, float& ReturnValue)
+{
+	ReturnValue = (float)cycles * 0.000001f;
 }
 
 void NObject::GetConfig_DeusEx(const std::string& ConfigSection, const std::string& ConfigKey, std::string& ReturnValue)
