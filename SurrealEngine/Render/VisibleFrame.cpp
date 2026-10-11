@@ -387,12 +387,74 @@ void VisibleFrame::DrawTranslucent()
 		translucent.Draw(this);
 }
 
+// Sorts the spans by row, then by their left edge.
+// A portal can have many thousands of spans (the sky portal of an outdoor map), and std::sort took 5% of the frame time for them.
+// The rows are small numbers, so a counting sort puts the spans in row order in linear time. A row has only a few spans.
+static void SortPortalSpans(Array<PortalSpan>& spans)
+{
+	auto compare = [](const PortalSpan& a, const PortalSpan& b) { return a.y != b.y ? a.y < b.y : a.x0 < b.x0; };
+
+	size_t count = spans.size();
+	if (count < 2)
+		return;
+
+	int64_t minY = spans[0].y;
+	int64_t maxY = spans[0].y;
+	for (const PortalSpan& span : spans)
+	{
+		minY = std::min(minY, span.y);
+		maxY = std::max(maxY, span.y);
+	}
+
+	size_t rows = (size_t)(maxY - minY) + 1;
+	if (rows > 16384 || count < 64)
+	{
+		std::sort(spans.begin(), spans.end(), compare);
+		return;
+	}
+
+	static std::vector<uint32_t> rowStart;
+	static std::vector<uint32_t> rowNext;
+	static std::vector<PortalSpan> sorted;
+
+	rowStart.assign(rows + 1, 0);
+	for (const PortalSpan& span : spans)
+		rowStart[(size_t)(span.y - minY) + 1]++;
+	for (size_t i = 0; i < rows; i++)
+		rowStart[i + 1] += rowStart[i];
+
+	rowNext.assign(rowStart.begin(), rowStart.end() - 1);
+	sorted.resize(count);
+	for (const PortalSpan& span : spans)
+		sorted[rowNext[(size_t)(span.y - minY)]++] = span;
+
+	for (size_t row = 0; row < rows; row++)
+	{
+		uint32_t begin = rowStart[row];
+		uint32_t end = rowStart[row + 1];
+		for (uint32_t i = begin + 1; i < end; i++)
+		{
+			PortalSpan span = sorted[i];
+			uint32_t j = i;
+			while (j > begin && sorted[j - 1].x0 > span.x0)
+			{
+				sorted[j] = sorted[j - 1];
+				j--;
+			}
+			sorted[j] = span;
+		}
+	}
+
+	for (size_t i = 0; i < count; i++)
+		spans[i] = sorted[i];
+}
+
 void VisibleFrame::DrawPortals()
 {
 	for (VisiblePortal& portal : Portals)
 	{
 		// BspClipper requires the visible spans list to be sorted
-		std::sort(portal.Spans.begin(), portal.Spans.end(), [](const PortalSpan& a, const PortalSpan& b) { return a.y != b.y ? a.y < b.y: a.x0 < b.x0; });
+		SortPortalSpans(portal.Spans);
 
 		if (portal.SkyZone)
 		{
