@@ -43,11 +43,31 @@ void UFireTexture::Save(PackageStreamWriter* stream)
 	}
 }
 
-static void SetPixel(uint8_t* pixels, int x, int y, int width, int height, uint8_t value)
+// The lookup tables of the original fire code (Fire.dll, the function that runs before the first fire texture):
+// a sine wave in the range 0 to 255, the same wave 32 higher with a limit of 255, and the same wave as a signed value.
+namespace
 {
-	if (x >= 0 && y >= 0 && x < width && y < height)
+	struct FireTables
 	{
-		pixels[x + y * width] = value;
+		uint8_t Sine[256];
+		uint8_t Light[256];
+		int8_t SignedSine[256];
+
+		FireTables()
+		{
+			for (int i = 0; i < 256; i++)
+			{
+				Sine[i] = (uint8_t)(int)std::round(std::sin(i * (1.0 / 256.0) * 6.2831855) * 127.5 + 127.45);
+				Light[i] = (uint8_t)std::min(Sine[i] + 0x20, 255);
+				SignedSine[i] = (int8_t)(uint8_t)(Sine[i] + 0x80);
+			}
+		}
+	};
+
+	const FireTables& GetFireTables()
+	{
+		static FireTables tables;
+		return tables;
 	}
 }
 
@@ -61,274 +81,7 @@ void UFireTexture::UpdateFrame()
 		int height = mipmap.Height;
 		uint8_t* pixels = (uint8_t*)mipmap.Data.data();
 
-		auto& sparks = Sparks;
-		for (size_t i = 0; i < sparks.size(); i++)
-		{
-			Spark& spark = sparks[i];
-			bool canEmit = sparks.size() + Particles.size() < (size_t)SparksLimit();
-			switch (spark.Type)
-			{
-			default: // Always create some output as otherwise textures might completely disappear
-			case ESpark::Eels: // This is the amp powerup effect
-			case ESpark::Sparkle: // Intro fire effect
-			{
-				int x = (spark.X + (RandomByteValue() * spark.ByteA + 128) / 256) % width;
-				int y = (spark.Y + (RandomByteValue() * spark.ByteB + 128) / 256) % height;
-				SetPixel(pixels, x, y, width, height, spark.Heat);
-				break;
-			}
-			case ESpark::Pulse:
-			{
-				int x = (spark.X + (RandomByteValue() * spark.ByteA + 128) / 256) % width;
-				int y = (spark.Y + (RandomByteValue() * spark.ByteB + 128) / 256) % height;
-				SetPixel(pixels, x, y, width, height, spark.Heat);
-				spark.Heat = spark.Heat + spark.Pulse.Speed;
-				break;
-			}
-			case ESpark::Signal:
-			{
-				int x = (spark.X + (RandomByteValue() * spark.ByteA + 128) / 256) % width;
-				int y = (spark.Y + (RandomByteValue() * spark.ByteB + 128) / 256) % height;
-				if (spark.Heat > spark.Signal.Frequency)
-					SetPixel(pixels, x, y, width, height, spark.Heat);
-				if ((int)spark.Heat + spark.Signal.Speed < 256)
-					spark.Heat = spark.Heat + spark.Signal.Speed;
-				else
-					spark.Heat = RandomByteValue();
-				break;
-			}
-			case ESpark::Burn:
-			{
-				int x = spark.X;
-				int y = spark.Y;
-				SetPixel(pixels, x, y, width, height, RandomByteValue());
-				break;
-			}
-			case ESpark::Wheel:
-			{
-				if (canEmit)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::Twirl;
-					particle.Twirl.X = spark.X + 0.5f;
-					particle.Twirl.Y = spark.Y + 0.5f;
-					particle.Twirl.Heat = spark.Heat;
-					particle.Twirl.Angle = radians(spark.Wheel.Angle * (360.0f / 256));
-					particle.Twirl.RotSpeed = radians(spark.Wheel.TwirlRotSpeed * (16.0f / 256) * (360.0f / 256));
-					particle.Twirl.Age = spark.Wheel.TwirlAge;
-					Particles.push_back(particle);
-				}
-				spark.Wheel.Angle += spark.Wheel.RotSpeed;
-				break;
-			}
-			case ESpark::Emit:
-			{
-				if (canEmit && RandomByteValue() < 64)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::Drift;
-					particle.Drift.X = spark.X + 0.5f;
-					particle.Drift.Y = spark.Y + 0.5f;
-					particle.Drift.Heat = spark.Heat;
-					particle.Drift.HeatDecay = spark.Emit.HeatDecay;
-					particle.Drift.SpeedX = ((int8_t)spark.Emit.SpeedX) * (1.0f / 128.0f);
-					particle.Drift.SpeedY = ((int8_t)spark.Emit.SpeedY) * (1.0f / 128.0f);
-					Particles.push_back(particle);
-				}
-				break;
-			}
-			case ESpark::OzHasSpoken:
-			{
-				if (canEmit && RandomByteValue() < 128)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::Drift;
-					particle.Drift.X = spark.X + 0.5f;
-					particle.Drift.Y = spark.Y + 0.5f;
-					particle.Drift.Heat = spark.Heat;
-					particle.Drift.HeatDecay = 5;
-					particle.Drift.SpeedX = (RandomByteValue() / 255.0f) * 2.0f - 1.0f;
-					particle.Drift.SpeedY = -0.5f;
-					Particles.push_back(particle);
-				}
-				break;
-			}
-			case ESpark::Blaze: // Torches (all directions)
-			{
-				if (canEmit && RandomByteValue() < 128)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::Drift;
-					particle.Drift.X = spark.X + 0.5f;
-					particle.Drift.Y = spark.Y + 0.5f;
-					particle.Drift.Heat = spark.Heat;
-					particle.Drift.HeatDecay = 5;
-					particle.Drift.SpeedX = (RandomByteValue() / 255.0f) * 2.0f - 1.0f;
-					particle.Drift.SpeedY = (RandomByteValue() / 255.0f) * 2.0f - 1.0f;
-					Particles.push_back(particle);
-				}
-				break;
-			}
-			case ESpark::BlazeLeft: // Torches (to the left with gravity)
-			{
-				if (canEmit && RandomByteValue() < 64)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::DriftGravity;
-					particle.DriftGravity.X = spark.X + 0.5f;
-					particle.DriftGravity.Y = spark.Y + 0.5f;
-					particle.DriftGravity.Age = spark.BlazeLeftRight.Age;
-					particle.DriftGravity.Heat = spark.Heat;
-					particle.DriftGravity.SpeedX = -0.5f - RandomByteValue() / 255.0f * 0.5f;
-					particle.DriftGravity.SpeedY = -0.1f;
-					Particles.push_back(particle);
-				}
-				break;
-			}
-			case ESpark::BlazeRight: // Torches (to the right with gravity)
-			{
-				if (canEmit && RandomByteValue() < 64)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::DriftGravity;
-					particle.DriftGravity.X = spark.X + 0.5f;
-					particle.DriftGravity.Y = spark.Y + 0.5f;
-					particle.DriftGravity.Age = spark.BlazeLeftRight.Age;
-					particle.DriftGravity.Heat = spark.Heat;
-					particle.DriftGravity.SpeedX = 0.5f + RandomByteValue() / 255.0f * 0.5f;
-					particle.DriftGravity.SpeedY = -0.1f;
-					Particles.push_back(particle);
-				}
-				break;
-			}
-			case ESpark::Cone: // Torches (center with gravity)
-			{
-				if (canEmit && RandomByteValue() < 64)
-				{
-					SparkParticle particle;
-					particle.Type = SparkParticleType::DriftGravity;
-					particle.DriftGravity.X = spark.X + 0.5f;
-					particle.DriftGravity.Y = spark.Y + 0.5f;
-					particle.DriftGravity.Age = 50;
-					particle.DriftGravity.Heat = spark.Heat;
-					particle.DriftGravity.SpeedX = (RandomByteValue() / 255.0f) - 0.5f;
-					particle.DriftGravity.SpeedY = 0.0f;
-					Particles.push_back(particle);
-				}
-				break;
-			}
-			case ESpark::SphereLightning:
-			{
-				if (RandomByteValue() >= spark.SphereLightning.Frequency)
-				{
-					// Worst lightning line implementation ever, but it will do, maybe!
-					float angle = radians(RandomByteValue() * (360.0f / 256));
-					float radius = spark.SphereLightning.Radius * 0.50f;
-					float x0 = spark.X + 0.5f;
-					float y0 = spark.Y + 0.5f;
-					float dx = std::cos(angle);
-					float dy = std::sin(angle);
-					int color0 = spark.Heat;
-					int color1 = spark.Heat / 4;
-					for (float i = 0; i < radius; i += 0.5f)
-					{
-						float t = i / radius;
-						int c = (int)(color0 + (color1 - color0) * t + 0.5f);
-						int x = (int)(x0 + dx * i);
-						int y = (int)(y0 + dy * i);
-						if (x < 0) x += width;
-						else if (x >= width) x -= width;
-						if (y < 0) y += height;
-						else if (y >= height) y -= height;
-						SetPixel(pixels, x, y, width, height, c);
-
-						x0 += VisualFRand() * 2.0f - 1.0f;
-						y0 += VisualFRand() * 2.0f - 1.0f;
-					}
-				}
-				break;
-			}
-			}
-		}
-
-		for (size_t i = 0; i < Particles.size(); i++)
-		{
-			SparkParticle& particle = Particles[i];
-			switch (particle.Type)
-			{
-			case SparkParticleType::Twirl:
-			{
-				if (particle.Twirl.Age > 0)
-				{
-					int x = (int)particle.Twirl.X;
-					int y = (int)particle.Twirl.Y;
-					if (x < 0) x += width; else if (x >= width) x -= width;
-					if (y < 0) y += height; else if (y >= height) y -= height;
-					SetPixel(pixels, x, y, width, height, particle.Twirl.Heat);
-
-					float angle = particle.Twirl.Angle;
-					float dx = std::sin(angle);
-					float dy = std::cos(angle);
-
-					particle.Twirl.X += dx * 0.5f;
-					particle.Twirl.Y += dy * 0.5f;
-					particle.Twirl.Angle += particle.Twirl.RotSpeed;
-					particle.Twirl.Age--;
-				}
-				else
-				{
-					particle = Particles.back();
-					Particles.pop_back();
-				}
-				break;
-			}
-			case SparkParticleType::Drift:
-			{
-				particle.Drift.Heat -= particle.Drift.HeatDecay;
-				if (particle.Drift.Heat > 0)
-				{
-					int x = (int)particle.Drift.X;
-					int y = (int)particle.Drift.Y;
-					if (x < 0) x += width; else if (x >= width) x -= width;
-					if (y < 0) y += height; else if (y >= height) y -= height;
-					SetPixel(pixels, x, y, width, height, particle.Drift.Heat);
-
-					particle.Drift.X += particle.Drift.SpeedX;
-					particle.Drift.Y += particle.Drift.SpeedY;
-				}
-				else
-				{
-					particle = Particles.back();
-					Particles.pop_back();
-				}
-				break;
-			}
-			case SparkParticleType::DriftGravity:
-			{
-				particle.DriftGravity.Age--;
-				if (particle.DriftGravity.Age > 0)
-				{
-					int x = (int)particle.DriftGravity.X;
-					int y = (int)particle.DriftGravity.Y;
-					if (x < 0) x += width; else if (x >= width) x -= width;
-					if (y < 0) y += height; else if (y >= height) y -= height;
-					SetPixel(pixels, x, y, width, height, particle.DriftGravity.Heat);
-
-					float gravity = 0.025f;
-					float terminalVelocity = 1.0f;
-					particle.DriftGravity.X += particle.DriftGravity.SpeedX * 0.5f;
-					particle.DriftGravity.Y += particle.DriftGravity.SpeedY * 0.5f;
-					particle.DriftGravity.SpeedY = std::min(particle.DriftGravity.SpeedY + gravity, terminalVelocity);
-				}
-				else
-				{
-					particle = Particles.back();
-					Particles.pop_back();
-				}
-				break;
-			}
-			}
-		}
+		RedrawSparks(pixels, width, height);
 
 		if (CurrentRenderHeat != RenderHeat())
 		{
@@ -374,6 +127,541 @@ void UFireTexture::UpdateFrame()
 		}
 		std::memcpy(pixels, buffer, width * height);
 
+		PostDrawSparks(pixels, width, height);
+
 		TextureModified = true;
+	}
+}
+
+// This function does the same as UFireTexture::RedrawSparks of the original Fire.dll. Each spark has 8 bytes, and
+// what the four last bytes mean depends on the type. The sizes of a fire texture are powers of two.
+void UFireTexture::RedrawSparks(uint8_t* pixels, int width, int height)
+{
+	const FireTables& tables = GetFireTables();
+	const int umask = width - 1;
+	const int vmask = height - 1;
+	const int limit = SparksLimit();
+
+	FrameCount++;
+
+	auto rnd = [this]() -> int { return RandomByteValue(); };
+	auto put = [=](int x, int y, int heat) { pixels[(y & vmask) * width + (x & umask)] = (uint8_t)heat; };
+
+	// A speed is a signed byte. It is the chance out of 128 that the spark moves one pixel in this frame.
+	auto moveX = [&](Spark& s, int speed)
+	{
+		if (speed < 0)
+		{
+			if ((rnd() & 0x7f) < -speed)
+				s.X = (uint8_t)((s.X - 1) & umask);
+		}
+		else if ((rnd() & 0x7f) < speed)
+		{
+			s.X = (uint8_t)((s.X + 1) & umask);
+		}
+	};
+	auto moveY = [&](Spark& s, int speed)
+	{
+		if (speed < 0)
+		{
+			if ((rnd() & 0x7f) < -speed)
+				s.Y = (uint8_t)((s.Y - 1) & vmask);
+		}
+		else if ((rnd() & 0x7f) < speed)
+		{
+			s.Y = (uint8_t)((s.Y + 1) & vmask);
+		}
+	};
+	// The slow random walk of some spark types
+	auto wander = [&](Spark& s)
+	{
+		if (rnd() & 1)
+			s.X = (uint8_t)(((rnd() & 0xf) + s.X - 7) & umask);
+		if (rnd() & 1)
+			s.Y = (uint8_t)(((rnd() & 0xf) + s.Y - 7) & vmask);
+	};
+	auto jitter = [&](Spark& s)
+	{
+		int dx = (rnd() & 7) - (rnd() & 7);
+		s.X = (uint8_t)((dx + s.X) & umask);
+		int dy = (rnd() & 7) - (rnd() & 7);
+		s.Y = (uint8_t)((dy + s.Y) & vmask);
+	};
+	auto makeSpark = [](uint8_t type, int heat, int x, int y, int a, int b, int c, int d)
+	{
+		Spark n = {};
+		n.Type = (ESpark)type;
+		n.Heat = (uint8_t)heat;
+		n.X = (uint8_t)x;
+		n.Y = (uint8_t)y;
+		n.ByteA = (uint8_t)a;
+		n.ByteB = (uint8_t)b;
+		n.ByteC = (uint8_t)c;
+		n.ByteD = (uint8_t)d;
+		return n;
+	};
+
+	Array<Spark>& sparks = Sparks;
+
+	// A new spark goes to the end of the list, so this loop also moves it in the frame that made it
+	for (size_t i = 0; i < sparks.size(); i++)
+	{
+		Spark s = sparks[i];
+		bool canEmit = (int)sparks.size() < limit;
+		bool remove = false;
+
+		switch ((uint8_t)s.Type)
+		{
+		case (uint8_t)ESpark::Burn:
+			put(s.X, s.Y, rnd());
+			break;
+		case (uint8_t)ESpark::Sparkle:
+		{
+			int x = s.X + ((s.ByteA * rnd()) >> 8);
+			int y = s.Y + ((s.ByteB * rnd()) >> 8);
+			put(x, y, s.Heat);
+			break;
+		}
+		case (uint8_t)ESpark::Pulse:
+			put(s.X, s.Y, s.Heat);
+			s.Heat = (uint8_t)(s.Heat + s.ByteD);
+			break;
+		case (uint8_t)ESpark::Signal:
+			if (s.ByteC < s.Heat)
+				put(s.X, s.Y, s.Heat);
+			s.Heat = (uint8_t)(s.Heat + s.ByteD);
+			if (s.Heat < s.ByteD)
+				s.Heat = (uint8_t)rnd();
+			break;
+		case (uint8_t)ESpark::Blaze:
+			if (canEmit && rnd() < 0x80)
+			{
+				int a = rnd();
+				int b = rnd();
+				sparks.push_back(makeSpark(DynamicSpark::Blaze, s.Heat, s.X, s.Y, a, b, s.ByteC, s.ByteD));
+			}
+			break;
+		case (uint8_t)ESpark::OzHasSpoken:
+			if (canEmit && rnd() < 0x80)
+				sparks.push_back(makeSpark(DynamicSpark::Drift, s.Heat, s.X, s.Y, (rnd() & 0x7f) - 0x3f, 0x81, 0, 2));
+			break;
+		case (uint8_t)ESpark::Cone:
+			if (canEmit && rnd() < 0x40)
+				sparks.push_back(makeSpark(DynamicSpark::Fall, s.Heat, s.X, s.Y, (rnd() & 0x7f) - 0x3f, 0, 0x32, 0));
+			break;
+		case (uint8_t)ESpark::BlazeRight:
+			if (canEmit && rnd() < 0x40)
+				sparks.push_back(makeSpark(DynamicSpark::Fall, s.Heat, s.X, s.Y, (rnd() & 0x3f) + 0x3f, 0xe3, s.ByteC, 0));
+			break;
+		case (uint8_t)ESpark::BlazeLeft:
+			if (canEmit && rnd() < 0x40)
+				sparks.push_back(makeSpark(DynamicSpark::Fall, s.Heat, s.X, s.Y, (rnd() & 0x3f) + 0x80, 0xe3, s.ByteC, 0));
+			break;
+		case (uint8_t)ESpark::Cylinder:
+		{
+			int heat = std::min(tables.Sine[(s.ByteA + 0x40) & 0xff] + s.Heat, 255);
+			put((uint8_t)(s.X + ((tables.Sine[s.ByteA] * s.ByteB) >> 8)), s.Y, heat);
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteD);
+			break;
+		}
+		case (uint8_t)ESpark::Cylinder3D:
+		{
+			int phase = (s.ByteA + 0x40) & 0xff;
+			if (phase < 0x80)
+			{
+				int heat = std::min(tables.Sine[phase] + s.Heat, 255);
+				put((uint8_t)(s.X + ((tables.Sine[s.ByteA] * s.ByteB) >> 8)), s.Y, heat);
+			}
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteD);
+			break;
+		}
+		case (uint8_t)ESpark::Lissajous:
+		{
+			int x = (uint8_t)(s.X + ((tables.Sine[s.ByteA] * s.Heat) >> 8));
+			int y = (uint8_t)(s.Y + ((tables.Sine[s.ByteB] * s.Heat) >> 8));
+			put(x, y, tables.Light[(uint8_t)(s.ByteA + 0x40)]);
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteC);
+			s.ByteB = (uint8_t)(s.ByteB + s.ByteD);
+			break;
+		}
+		case (uint8_t)ESpark::Jugglers:
+		{
+			int heat = std::min(tables.Sine[(s.ByteA + 0x40) & 0xff] + s.Heat, 255);
+			put(s.X, (uint8_t)(s.Y + ((tables.Sine[s.ByteA] * s.ByteB) >> 8)), heat);
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteD);
+			break;
+		}
+		case (uint8_t)ESpark::Emit:
+			if (canEmit && rnd() < 0x40)
+				sparks.push_back(makeSpark(DynamicSpark::Drift, s.Heat, s.X, s.Y, s.ByteA, s.ByteB, 0, s.ByteD));
+			break;
+		case (uint8_t)ESpark::Fountain:
+			if (canEmit && rnd() < 0x40)
+				sparks.push_back(makeSpark(DynamicSpark::FountainDrop, s.Heat, s.X, s.Y, s.ByteA, s.ByteB, 0, s.ByteD));
+			break;
+		case (uint8_t)ESpark::Flocks:
+			if (canEmit)
+			{
+				int x = ((rnd() & 0x1f) + s.X) & umask;
+				int y = ((rnd() & 0x1f) + s.Y) & vmask;
+				sparks.push_back(makeSpark(DynamicSpark::Twirl, s.Heat, x, y, 0, s.ByteA, s.ByteB, s.ByteD));
+				s.ByteA = (uint8_t)(s.ByteA + s.ByteC);
+			}
+			jitter(s);
+			break;
+		case (uint8_t)ESpark::Eels:
+			if (rnd() < 0x14 && canEmit)
+			{
+				int x = ((rnd() & 0x1f) + s.X) & umask;
+				int y = ((rnd() & 0x1f) + s.Y) & vmask;
+				int a = rnd();
+				int b = rnd();
+				sparks.push_back(makeSpark(DynamicSpark::Eel, s.Heat, x, y, a, b, s.ByteC, 0));
+			}
+			wander(s);
+			break;
+		case (uint8_t)ESpark::Organic:
+			if (canEmit && rnd() < 0x80)
+			{
+				int x = (((rnd() * s.ByteC) >> 8) + s.X) & umask;
+				int y = (((rnd() * s.ByteC) >> 8) + s.Y) & vmask;
+				sparks.push_back(makeSpark(DynamicSpark::OrganicRise, 0, x, y, rnd() - 0x7f, 0x81, 0xff, 0));
+			}
+			break;
+		case (uint8_t)ESpark::WanderOrganic:
+			if (canEmit)
+			{
+				int x = ((rnd() & 0x1f) + s.X) & umask;
+				int y = ((rnd() & 0x1f) + s.Y) & vmask;
+				sparks.push_back(makeSpark(DynamicSpark::OrganicRise, 0, x, y, rnd() - 0x7f, 0x81, 0xff, 0));
+			}
+			wander(s);
+			break;
+		case (uint8_t)ESpark::RandmCloud:
+			if (canEmit)
+			{
+				int x = ((rnd() & 0x1f) + s.X) & umask;
+				int y = ((rnd() & 0x1f) + s.Y) & vmask;
+				sparks.push_back(makeSpark(DynamicSpark::CloudRise, 0, x, y, (rnd() & 0x1f) - 0xf, 0x81, 0, 0));
+			}
+			wander(s);
+			break;
+		case (uint8_t)ESpark::CustomCloud:
+			if (canEmit)
+			{
+				int x = ((rnd() & 0x1f) + s.X) & umask;
+				int y = ((rnd() & 0x1f) + s.Y) & vmask;
+				sparks.push_back(makeSpark(DynamicSpark::CloudDrift, 0, x, y, s.ByteA, s.ByteB, s.ByteD, 0));
+			}
+			jitter(s);
+			break;
+		case (uint8_t)ESpark::LocalCloud:
+			if (canEmit)
+			{
+				int x = (((rnd() * s.ByteC) >> 8) + s.X) & umask;
+				int y = (((rnd() * s.ByteC) >> 8) + s.Y) & vmask;
+				sparks.push_back(makeSpark(DynamicSpark::CloudDrift, 0, x, y, s.ByteA, s.ByteB, s.ByteD, 0));
+			}
+			break;
+		case (uint8_t)ESpark::Stars:
+			put(s.X, s.Y, s.ByteB);
+			break;
+		case (uint8_t)ESpark::LineLightning:
+		case (uint8_t)ESpark::RampLightning:
+			// ByteC counts the frames of one flash. ByteD is how seldom a flash starts.
+			if (s.Heat != 0)
+			{
+				if (s.ByteC == 0)
+				{
+					if (s.ByteD <= rnd())
+						s.ByteC = (uint8_t)((rnd() + 1) & 5);
+				}
+				else
+				{
+					s.ByteC--;
+					int heatEnd = (s.Type == ESpark::LineLightning) ? s.Heat : (s.Heat >> 3);
+					DrawFlashRamp(pixels, width, height, s.X, s.Y, s.ByteA, s.ByteB, s.Heat, heatEnd);
+				}
+			}
+			break;
+		case (uint8_t)ESpark::SphereLightning:
+			if (s.ByteD <= rnd())
+			{
+				// A flash from the center to a random point on a circle with the diameter ByteC
+				int angle = rnd();
+				int radius = s.ByteC;
+				int dx = ((tables.Sine[angle] * radius) >> 8) - (radius >> 1);
+				int dy = ((tables.Sine[(angle + 0x40) & 0xff] * radius) >> 8) - (radius >> 1);
+				int lengthX = (dx < 1) ? ((uint8_t)(-dx) | 1) : ((uint8_t)dx & 0xfe);
+				int lengthY = (dy < 1) ? ((uint8_t)(-dy) | 1) : ((uint8_t)dy & 0xfe);
+				DrawFlashRamp(pixels, width, height, s.X, s.Y, lengthX, lengthY, s.Heat, s.Heat >> 2);
+			}
+			break;
+		case (uint8_t)ESpark::Wheel:
+			if (canEmit)
+				sparks.push_back(makeSpark(DynamicSpark::Twirl, s.Heat, s.X, s.Y, 0, s.ByteA, s.ByteB, s.ByteD));
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteC);
+			break;
+		case (uint8_t)ESpark::Gametes:
+			if (rnd() < 0x14 && canEmit)
+			{
+				int x = ((rnd() & 0x1f) + s.X) & umask;
+				int y = ((rnd() & 0x1f) + s.Y) & vmask;
+				int a = rnd();
+				int d = rnd();
+				sparks.push_back(makeSpark(DynamicSpark::Gamete, s.Heat, x, y, a, 0, s.ByteC, d));
+			}
+			wander(s);
+			break;
+		case (uint8_t)ESpark::Sprinkler:
+			if (canEmit)
+				sparks.push_back(makeSpark(DynamicSpark::Sprinkle, s.Heat, s.X, s.Y, s.ByteA, s.ByteB, s.ByteC, 2));
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteD);
+			break;
+		case 0x1d: // A point that swings from left to right
+			put((uint8_t)(s.X + ((tables.Sine[s.ByteA] * s.Heat) >> 8)), s.Y, tables.Light[(uint8_t)(s.ByteA + 0x40)]);
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteC);
+			break;
+		case 0x1e: // A point that swings up and down
+			put(s.X, (uint8_t)(s.Y + ((tables.Sine[s.ByteB] * s.Heat) >> 8)), tables.Light[(uint8_t)(s.ByteB + 0x40)]);
+			s.ByteB = (uint8_t)(s.ByteB + s.ByteD);
+			break;
+
+		case DynamicSpark::Blaze:
+			s.Heat = (uint8_t)(s.Heat - 5);
+			if (s.Heat < 0xfb)
+			{
+				put(s.X, s.Y, s.Heat);
+				moveX(s, (int8_t)s.ByteA);
+				moveY(s, (int8_t)s.ByteB);
+			}
+			else
+			{
+				remove = true;
+			}
+			break;
+		case DynamicSpark::Drift:
+			s.Heat = (uint8_t)(s.Heat - s.ByteD);
+			if (s.Heat <= s.ByteD)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			moveX(s, (int8_t)s.ByteA);
+			moveY(s, (int8_t)s.ByteB);
+			break;
+		case DynamicSpark::Fall:
+			s.ByteC--;
+			if (s.ByteC == 0)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			moveX(s, (int8_t)s.ByteA);
+			moveY(s, (int8_t)s.ByteB);
+			if ((int8_t)s.ByteB < 0x7a)
+				s.ByteB = (uint8_t)(s.ByteB + 3);
+			break;
+		case DynamicSpark::OrganicRise:
+		case DynamicSpark::CloudRise:
+			if ((uint8_t)s.Type == DynamicSpark::OrganicRise)
+			{
+				s.ByteC = (uint8_t)(s.ByteC - 3);
+				remove = s.ByteC < 0xbf;
+			}
+			else
+			{
+				s.ByteC = (uint8_t)(s.ByteC + 4);
+				remove = s.ByteC > 0xf9;
+			}
+			if (remove)
+				break;
+			put(s.X, s.Y, s.ByteC);
+			moveX(s, (int8_t)s.ByteA);
+			s.Y = (uint8_t)((s.Y - 2) & vmask);
+			break;
+		case DynamicSpark::CloudDrift:
+			s.ByteC = (uint8_t)(s.ByteC + 4);
+			if (s.ByteC > 0xf9)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.ByteC);
+			moveX(s, (int8_t)s.ByteA);
+			moveY(s, (int8_t)s.ByteB);
+			break;
+		case DynamicSpark::Eel:
+			s.ByteC--;
+			if (s.ByteC == 0xff)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			moveX(s, (int8_t)s.ByteA);
+			moveY(s, (int8_t)s.ByteB);
+			break;
+		case DynamicSpark::Twirl:
+		{
+			s.ByteC--;
+			if (s.ByteC == 0xff)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			int speedY = tables.SignedSine[s.ByteB];
+			int speedX = tables.SignedSine[(s.ByteB + 0x40) & 0xff];
+			// ByteA and ByteB together are the direction as a 16 bit value
+			int direction = (s.ByteA | (s.ByteB << 8)) + s.ByteD * 0x10;
+			s.ByteA = (uint8_t)direction;
+			s.ByteB = (uint8_t)(direction >> 8);
+			moveX(s, speedX);
+			moveY(s, speedY);
+			break;
+		}
+		case DynamicSpark::Sprinkle:
+		{
+			s.ByteC--;
+			if (s.ByteC == 0xff)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			int speedX = (int8_t)(uint8_t)(tables.Sine[(s.ByteA + 0x40) & 0xff] - 0x80);
+			int speedY = (int8_t)s.ByteB;
+			s.ByteA = (uint8_t)(s.ByteA + s.ByteD);
+			moveX(s, speedX);
+			moveY(s, speedY);
+			break;
+		}
+		case DynamicSpark::HeatDrift:
+			s.Heat = (uint8_t)(s.Heat - s.ByteC);
+			if (s.Heat > 0xf9)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			moveX(s, (int8_t)s.ByteA);
+			moveY(s, (int8_t)s.ByteB);
+			break;
+		case DynamicSpark::FountainDrop:
+			s.Heat = (uint8_t)(s.Heat - s.ByteD);
+			if (s.Heat < 0x33)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			moveX(s, (int8_t)s.ByteA);
+			moveY(s, (int8_t)s.ByteB);
+			if ((FrameCount & 1) != 0 && (int8_t)s.ByteB < 0x7c)
+				s.ByteB = (uint8_t)(s.ByteB + 3);
+			break;
+		case DynamicSpark::Gamete:
+		{
+			s.ByteC--;
+			if (s.ByteC == 0xff)
+			{
+				remove = true;
+				break;
+			}
+			put(s.X, s.Y, s.Heat);
+			s.ByteA = (uint8_t)(s.ByteA + 7);
+			int swing = s.ByteA & 0x7f;
+			if (swing > 0x3f)
+				swing = 0x7f - swing;
+			int direction = (uint8_t)(s.ByteD + swing);
+			int speedY = (int8_t)(uint8_t)(tables.Sine[(uint8_t)(direction + 0x40)] - 0x7f);
+			int speedX = (int8_t)(uint8_t)(tables.Sine[direction] - 0x7f);
+			moveX(s, speedX);
+			moveY(s, speedY);
+			break;
+		}
+		default:
+			break;
+		}
+
+		if (remove)
+		{
+			// The last spark of the list takes this place. It moves again in the next frame.
+			sparks[i] = sparks.back();
+			sparks.pop_back();
+		}
+		else
+		{
+			sparks[i] = s;
+		}
+	}
+}
+
+// A star keeps its place bright after the heat of the texture went down there
+void UFireTexture::PostDrawSparks(uint8_t* pixels, int width, int height)
+{
+	const int umask = width - 1;
+	const int vmask = height - 1;
+	for (Spark& s : Sparks)
+	{
+		if (s.Type == ESpark::Stars)
+		{
+			uint8_t& pixel = pixels[(s.Y & vmask) * width + (s.X & umask)];
+			s.ByteB = pixel;
+			if (pixel < 0x26)
+				pixel = s.ByteA;
+		}
+	}
+}
+
+// A flash of lightning: a line with random steps to the side, and a heat that changes from heatStart to heatEnd.
+// lengthX and lengthY are the lengths in pixels. Bit 0 of a length is the direction: 1 is to the left or up.
+// This does the same as UFireTexture::DrawFlashRamp of the original Fire.dll.
+void UFireTexture::DrawFlashRamp(uint8_t* pixels, int width, int height, int x, int y, int lengthX, int lengthY, int heatStart, int heatEnd)
+{
+	const int umask = width - 1;
+	const int vmask = height - 1;
+
+	int steps = std::max(lengthX, lengthY) | 1;
+	uint8_t side[256];
+	int sideSum = 0;
+	for (int i = 0; i < steps; i++)
+	{
+		side[i] = (uint8_t)RandomByteValue();
+		sideSum += side[i];
+	}
+
+	int stepX = (lengthX & 1) ? -1 : 1;
+	int stepY = (lengthY & 1) ? -1 : 1;
+	int heat = heatStart << 23;
+	int heatStep = ((heatEnd - heatStart) * 0x800000) / steps;
+
+	if (lengthX < lengthY)
+	{
+		// The line goes more up or down than to the side. The random steps move X, and they end at the X of the end point.
+		int sideStep = (stepX * lengthX * 0x40 - sideSum) / steps;
+		int fixedX = x << 6;
+		for (int i = 0; i < lengthY; i++)
+		{
+			fixedX += side[i] + sideStep;
+			heat += heatStep;
+			pixels[(y & vmask) * width + ((fixedX >> 6) & umask)] = (uint8_t)(heat >> 23);
+			y += stepY;
+		}
+	}
+	else
+	{
+		int sideStep = (stepY * lengthY * 0x40 - sideSum) / steps;
+		int fixedY = y << 6;
+		for (int i = 0; i < lengthX; i++)
+		{
+			fixedY += side[i] + sideStep;
+			heat += heatStep;
+			pixels[((fixedY >> 6) & vmask) * width + (x & umask)] = (uint8_t)(heat >> 23);
+			x += stepX;
+		}
 	}
 }

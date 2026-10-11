@@ -65,23 +65,26 @@ struct Spark
 	};
 };
 
-enum class SparkParticleType
+// Spark types above the list of ESpark are short-lived sparks. A spark of the texture makes them, and they move and
+// lose heat until they go out. The original engine keeps them in the same list as the sparks of the texture.
+namespace DynamicSpark
 {
-	Twirl,
-	Drift,
-	DriftGravity,
-};
-
-struct SparkParticle
-{
-	SparkParticleType Type;
-	union
+	enum : uint8_t
 	{
-		struct { float X, Y, Angle, RotSpeed; uint8_t Heat, Age; } Twirl;
-		struct { float X, Y, SpeedX, SpeedY; int Heat, HeatDecay; } Drift;
-		struct { float X, Y, SpeedX, SpeedY; uint8_t Heat, Age; } DriftGravity;
+		Blaze = 0x20,         // loses 5 heat for each frame
+		Drift = 0x21,         // loses ByteD heat for each frame
+		Fall = 0x22,          // lives ByteC frames, falls faster with time
+		OrganicRise = 0x23,   // heat is ByteC and goes down, rises 2 pixels for each frame
+		CloudRise = 0x24,     // heat is ByteC and goes up, rises 2 pixels for each frame
+		CloudDrift = 0x25,    // heat is ByteC and goes up, moves with the speed ByteA and ByteB
+		Eel = 0x26,           // lives ByteC frames
+		Twirl = 0x27,         // lives ByteC frames, the direction ByteB turns with the speed ByteD
+		Sprinkle = 0x28,      // lives ByteC frames, the horizontal speed swings
+		HeatDrift = 0x29,     // loses ByteC heat for each frame
+		FountainDrop = 0x2a,  // loses ByteD heat for each frame, falls faster with time
+		Gamete = 0x2b         // lives ByteC frames, the direction swings around ByteD
 	};
-};
+}
 
 class UFireTexture : public UFractalTexture
 {
@@ -117,9 +120,13 @@ public:
 private:
 	int RandomByteValue() { return VisualRandInt(255); }
 
+	void RedrawSparks(uint8_t* pixels, int width, int height);
+	void PostDrawSparks(uint8_t* pixels, int width, int height);
+	void DrawFlashRamp(uint8_t* pixels, int width, int height, int x, int y, int lengthX, int lengthY, int heatStart, int heatEnd);
+
 	Array<uint8_t> WorkBuffer;
 	uint8_t FadeTable[4 * 256];
 	int CurrentRenderHeat = -1;
-	Array<SparkParticle> Particles;
-	Array<Spark> Sparks;
+	uint32_t FrameCount = 0;
+	Array<Spark> Sparks; // The sparks of the texture first, then the short-lived sparks
 };
