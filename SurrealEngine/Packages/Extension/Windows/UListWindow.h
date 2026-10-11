@@ -1,6 +1,8 @@
 #pragma once
 
 #include "UWindow.h"
+#include <map>
+#include <memory>
 
 class UListWindow : public UWindow
 {
@@ -77,39 +79,88 @@ public:
 	void Sort();
 	void ToggleRowSelection(int rowId);
 
-	void DispatchListSelectionChanged();
-
 	void InitWindow() override;
 	void DrawWindow(UGC* gc) override;
+	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
+	void ParentRequestedGranularity(float& hGranularity, float& vGranularity) override;
+	void VisibilityChanged(bool bNewVisibility) override;
+	void MouseMoved(float newX, float newY) override;
 	bool MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks) override;
 	bool MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks) override;
+	bool KeyPressed(std::string key) override;
+	bool VirtualKeyPressed(EInputKey key, bool bRepeat) override;
+	void Tick(float timeElapsed) override;
 
+private:
+	// Follows XListColData of Extension.dll
 	struct Column
 	{
-		EHAlign align = EHAlign::Left;
-		Color color;
-		UFont* font = nullptr;
 		std::string title;
-		uint8_t type = 0;
-		std::optional<std::string> format;
-		float width = 0.0f;
+		int sortOrder = 0; // -1: not a sort key. The highest value is the first sort key.
+		bool reverse = false;
+		bool caseSensitive = false;
 		bool hidden = false;
+		float width = 0.0f;
+		EHAlign align = EHAlign::Left;
+		Color color = { 255, 255, 255, 255 };
+		UFont* font = nullptr;
+		uint8_t type = 0; // EColumnType: string, float, time
+		std::string format;
 	};
-	std::vector<Column> columns;
 
-	struct Item
+	struct Field
+	{
+		std::string text;
+		float value = 0.0f;
+		float width = 0.0f;
+		float height = 0.0f;
+	};
+
+	// Follows XListRowData of Extension.dll. The original uses the address of the row as the row id.
+	struct Row
 	{
 		int id = 0;
-		std::vector<std::string> cells;
+		int index = -1;
+		bool selected = false;
 		int clientInt = 0;
 		UObject* clientObj = nullptr;
-		bool selected = false;
+		std::vector<Field> fields;
 	};
-	std::vector<Item> items;
+
+	Row* FindRow(int rowId);
+	bool IsColumnValid(int colIndex) const { return colIndex >= 0 && (size_t)colIndex < columns.size(); }
+	void InitColumn(Column& col);
+	void ComputeRowSize();
+	void ComputeFieldSize(Row* row, int colIndex);
+	bool ExpandColumnByField(Row* row, int colIndex);
+	void ExtendRow(Row* row);
+	bool FillRow(Row* row, const std::string& rowStr);
+	void SetFieldByString(Row* row, int colIndex, const std::string& text);
+	void SetFieldByValue(Row* row, int colIndex, float value);
+	std::vector<const Column*> SortedColumns() const;
+	int CompareRows(const Row* a, const Row* b, const std::vector<const Column*>& sortCols) const;
+	bool FindRowData(const Row* row, int& position) const;
+	void SortRows();
+	void CheckPosition(Row* row);
+	void InsertRow(Row* row);
+	void RemoveRow(Row* row);
+	void RecomputeIndices(size_t first = 0);
+	void ChangeSelectRow(int index, bool select, bool& changed);
+	void MoveToRow(Row* row, bool select, bool clearRows, bool invert, bool spanRows, bool setFocus);
+	void ActivateListRow();
+	void ChangeListSelection();
+	int FindRowByKey(const std::string& key);
+	void ClearHotKeyString();
+	int RowIndexAt(float pointY) const;
+	Row* FocusRow() { return FindRow(focusLine()); }
+	Row* AnchorRow() { return FindRow(anchorLine()); }
+
+	std::vector<Column> columns;
+	std::vector<Row*> rows; // in the order of the display
+	std::map<int, std::unique_ptr<Row>> rowsById;
 	int nextRowId = 1;
 
-	Color highlightTextColor = { 255,255,255,255 };
-
+public:
 	USound*& ActivateSound() { return Value<USound*>(PropOffsets_ListWindow.ActivateSound); }
 	std::string& Delimiter() { return Value<std::string>(PropOffsets_ListWindow.Delimiter); }
 	int& anchorLine() { return Value<int>(PropOffsets_ListWindow.anchorLine); }
