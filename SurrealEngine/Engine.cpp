@@ -2295,7 +2295,41 @@ bool Engine::ExecCommand(const Array<std::string>& args)
 						break;
 					}
 					case ExpressionValueType::ValueFloat: vmArgs.push_back(ExpressionValue::FloatValue((float)std::atof(arg.c_str()))); break;
-					case ExpressionValueType::ValueString: vmArgs.push_back(ExpressionValue::StringValue(arg)); break;
+					case ExpressionValueType::ValueString:
+					{
+						// As UStrProperty::ImportText: text in quotes is one string, and text with no quotes goes on to
+						// the end of the command, as in "Say hello to all"
+						std::string text = arg;
+						size_t used = 1;
+						if (!text.empty() && text.front() == '"')
+						{
+							text.erase(0, 1);
+							while (true)
+							{
+								size_t quote = text.find('"');
+								if (quote != std::string::npos)
+								{
+									text.resize(quote);
+									break;
+								}
+								if (1 + argindex + used >= args.size())
+									break;
+								text += " " + args[1 + argindex + used];
+								used++;
+							}
+						}
+						else
+						{
+							while (1 + argindex + used < args.size())
+							{
+								text += " " + args[1 + argindex + used];
+								used++;
+							}
+						}
+						vmArgs.push_back(ExpressionValue::StringValue(text));
+						argindex += (int)used - 1;
+						break;
+					}
 					case ExpressionValueType::ValueName: vmArgs.push_back(ExpressionValue::NameValue(arg)); break;
 					case ExpressionValueType::ValueObject:
 					{
