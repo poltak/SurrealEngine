@@ -244,44 +244,52 @@ public:
 };
 
 // Added in Deus Ex
+//
+// Both iterators walk the result of ULevel::MultiLineCheck in the original Engine.dll (build 1112fm):
+// hits are sorted by distance, the trace stops at the first world hit, and a world hit reports the
+// LevelInfo actor. Neither native filters the hits by BaseClass or bHidden; the script does that.
+struct TraceHitInfo
+{
+	UActor* Actor = nullptr;
+	vec3 HitLoc = vec3(0.0f);
+	vec3 HitNorm = vec3(0.0f);
+	NameString TexName;
+	NameString TexGroup;
+	int Flags = 0;
+};
+
+Array<TraceHitInfo> CollectMultiLineCheckHits(UActor* SelfActor, const vec3& End, const vec3& Start, const vec3& Extent, bool visibilityOnly);
+
 class TraceTextureIterator : public Iterator
 {
 public:
-	TraceTextureIterator(UObject* BaseClass, UObject** OutActor, NameString* TexName, NameString* TexGroup, int* Flags, vec3& HitLoc, vec3& HitNorm, vec3 End, vec3* Start, vec3* Extent);
+	TraceTextureIterator(UActor* SelfActor, UObject** OutActor, NameString* TexName, NameString* TexGroup, int* Flags, vec3* HitLoc, vec3* HitNorm, const vec3& End, const vec3& Start, const vec3& Extent);
 	bool Next() override;
 
-	UObject* BaseClass = nullptr;
 	UObject** OutActor = nullptr;
 	NameString* TexName = nullptr;
 	NameString* TexGroup = nullptr;
-	int* flags = nullptr;
-	vec3 HitLoc = vec3(0, 0, 0);
-	vec3 HitNorm = vec3(0, 0, 0);
-	vec3 End = vec3(0,0, 0);
-	vec3* Start = nullptr;
-	vec3* m_Extent = nullptr;
+	int* Flags = nullptr;
+	vec3* HitLoc = nullptr;
+	vec3* HitNorm = nullptr;
 
 private:
-	CollisionHitList m_CollList;
-	CollisionHitList::const_iterator m_Iterator;
+	Array<TraceHitInfo> Hits;
+	size_t Index = 0;
 };
 
 // Added in Deus Ex
 class TraceVisibleActorsIterator : public Iterator
 {
 public:
-	TraceVisibleActorsIterator(UObject* BaseClass, UObject** OutActor, vec3& HitLoc, vec3& HitNorm, vec3 End, vec3* Start, vec3* Extent);
+	TraceVisibleActorsIterator(UActor* SelfActor, UObject** OutActor, vec3* HitLoc, vec3* HitNorm, const vec3& End, const vec3& Start, const vec3& Extent);
 	bool Next() override;
 
-	UObject* BaseClass = nullptr;
 	UObject** OutActor = nullptr;
-	vec3 HitLoc = vec3(0, 0, 0);
-	vec3 HitNorm = vec3(0, 0, 0);
-	vec3 End = vec3(0,0, 0);
-	vec3* Start = nullptr;
-	vec3* m_Extent = nullptr;
+	vec3* HitLoc = nullptr;
+	vec3* HitNorm = nullptr;
 
 private:
-	CollisionHitList m_CollList;
-	CollisionHitList::const_iterator m_Iterator;
+	Array<TraceHitInfo> Hits;
+	size_t Index = 0;
 };

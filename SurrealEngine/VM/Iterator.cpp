@@ -7,6 +7,8 @@
 #include "Package/PackageManager.h"
 #include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Packages/Engine/Resources/Level/UModel.h"
+#include "Packages/Engine/Actors/Info/ULevelInfo.h"
+#include "Packages/Engine/Actors/UActor.h"
 
 #include <algorithm>
 
@@ -419,85 +421,93 @@ bool ZoneActorsIterator::Next()
 
 /////////////////////////////////////////////////////////////////////////////
 
-TraceTextureIterator::TraceTextureIterator(UObject* BaseClass, UObject** OutActor, NameString* TexName, NameString* TexGroup, int* Flags, vec3& HitLoc, vec3& HitNorm, vec3 End, vec3* Start, vec3* Extent)
-	: BaseClass(BaseClass), OutActor(OutActor), TexName(TexName), TexGroup(TexGroup), flags(Flags), HitLoc(HitLoc), HitNorm(HitNorm),
-	End(End), Start(Start), m_Extent(Extent)
+Array<TraceHitInfo> CollectMultiLineCheckHits(UActor* SelfActor, const vec3& End, const vec3& Start, const vec3& Extent, bool visibilityOnly)
 {
-	auto radius = m_Extent ? length(m_Extent->xy()) : 0;
-	auto height = m_Extent ? ( m_Extent->z < 0 ? -m_Extent->z : m_Extent->z ) : 0;
+	// Mirrors ULevel::MultiLineCheck(Mem, End, Start, Extent, bCheckActors=1, LevelInfo, ExtraNodeFlags):
+	// - hits come back sorted from Start to End
+	// - a hit on level geometry has Actor = LevelInfo and ends the trace
+	// - for a LevelInfo hit, the texture name, the texture group (the Outer of the texture) and the
+	//   PolyFlags of the BSP surface (not of the texture) are reported. Actor hits report None/None/0.
+	Array<TraceHitInfo> result;
+	ULevel* level = SelfActor->XLevel();
+	if (!level)
+		return result;
 
-	m_CollList = engine->Level->Collision.Trace(*Start, End, height, radius, true, true, false);
+	for (const CollisionHit& hit : level->Collision.Trace(Start, End, Extent.z, Extent.x, true, true, visibilityOnly))
+	{
+		TraceHitInfo info;
+		info.HitLoc = mix(Start, End, hit.Fraction);
+		info.HitNorm = hit.Normal;
 
-	m_Iterator = m_CollList.begin();
+		if (hit.Actor)
+		{
+			info.Actor = hit.Actor;
+			result.push_back(info);
+			continue;
+		}
+
+		info.Actor = SelfActor->Level();
+		if (hit.Node && level->Model && hit.Node->Surf >= 0 && (size_t)hit.Node->Surf < level->Model->Surfaces.size())
+		{
+			const BspSurface& surf = level->Model->Surfaces[hit.Node->Surf];
+			if (surf.Material)
+			{
+				info.TexName = surf.Material->Name;
+				if (surf.Material->Outer())
+					info.TexGroup = surf.Material->Outer()->Name;
+			}
+			info.Flags = (int)surf.PolyFlags;
+		}
+		result.push_back(info);
+		break;
+	}
+	return result;
+}
+
+TraceTextureIterator::TraceTextureIterator(UActor* SelfActor, UObject** OutActor, NameString* TexName, NameString* TexGroup, int* Flags, vec3* HitLoc, vec3* HitNorm, const vec3& End, const vec3& Start, const vec3& Extent)
+	: OutActor(OutActor), TexName(TexName), TexGroup(TexGroup), Flags(Flags), HitLoc(HitLoc), HitNorm(HitNorm)
+{
+	Hits = CollectMultiLineCheckHits(SelfActor, End, Start, Extent, false);
 }
 
 bool TraceTextureIterator::Next()
 {
-	while (m_Iterator != m_CollList.end())
+	if (Index >= Hits.size())
 	{
-		UTexture* foundTexture = nullptr;
-
-		*OutActor = m_Iterator->Actor;
-		const auto node = m_Iterator->Node;
-
-		HitLoc = mix(*Start, End, m_Iterator->Fraction);
-
-		HitNorm = m_Iterator->Normal;
-
-		if (node)
-			foundTexture = engine->Level->Model->Surfaces[node->Surf].Material;
-		else if (*OutActor && (*OutActor)->IsA(BaseClass->Name))
-			foundTexture = UObject::Cast<UActor>(*OutActor)->Skin();
-
-		++m_Iterator;
-
-		if (foundTexture)
-		{
-			*TexName = foundTexture->Name;
-			*TexGroup = foundTexture->Outer() ? foundTexture->Outer()->Name : "";
-			*flags = foundTexture->PolyFlags();
-			return true;
-		}
+		*OutActor = nullptr;
+		return false;
 	}
 
-	*OutActor = nullptr;
-	TexName = nullptr;
-	TexGroup = nullptr;
-	flags = nullptr;
-	return false;
+	const TraceHitInfo& hit = Hits[Index++];
+	*OutActor = hit.Actor;
+	*HitLoc = hit.HitLoc;
+	*HitNorm = hit.HitNorm;
+	*TexName = hit.TexName;
+	*TexGroup = hit.TexGroup;
+	*Flags = hit.Flags;
+	return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////
 
-TraceVisibleActorsIterator::TraceVisibleActorsIterator(UObject* BaseClass, UObject** OutActor, vec3& HitLoc, vec3& HitNorm, vec3 End, vec3* Start, vec3* Extent)
-	: BaseClass(BaseClass), OutActor(OutActor), HitLoc(HitLoc), HitNorm(HitNorm),  End(End), Start(Start), m_Extent(Extent)
+TraceVisibleActorsIterator::TraceVisibleActorsIterator(UActor* SelfActor, UObject** OutActor, vec3* HitLoc, vec3* HitNorm, const vec3& End, const vec3& Start, const vec3& Extent)
+	: OutActor(OutActor), HitLoc(HitLoc), HitNorm(HitNorm)
 {
-	auto radius = m_Extent ? length(m_Extent->xy()) : 0;
-	auto height = m_Extent ? ( m_Extent->z < 0 ? -m_Extent->z : m_Extent->z ) : 0;
-
-	m_CollList = engine->Level->Collision.Trace(*Start, End, height, radius, true, true, false);
-
-	m_Iterator = m_CollList.begin();
+	// The original passes ExtraNodeFlags = NF_NotVisBlocking (4): the trace ignores BSP nodes that do not block sight.
+	Hits = CollectMultiLineCheckHits(SelfActor, End, Start, Extent, true);
 }
 
 bool TraceVisibleActorsIterator::Next()
 {
-	while (m_Iterator != m_CollList.end())
+	if (Index >= Hits.size())
 	{
-		auto foundActor = m_Iterator->Actor;
-
-		HitLoc = mix(*Start, End, m_Iterator->Fraction);
-		HitNorm = m_Iterator->Normal;
-
-		++m_Iterator;
-
-		if (foundActor && foundActor->IsA(BaseClass->Name) && !foundActor->bHidden())
-		{
-			*OutActor = foundActor;
-			return true;
-		}
+		*OutActor = nullptr;
+		return false;
 	}
 
-	*OutActor = nullptr;
-	return false;
+	const TraceHitInfo& hit = Hits[Index++];
+	*OutActor = hit.Actor;
+	*HitLoc = hit.HitLoc;
+	*HitNorm = hit.HitNorm;
+	return true;
 }
