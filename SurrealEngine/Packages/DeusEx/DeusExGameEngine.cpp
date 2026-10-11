@@ -300,6 +300,15 @@ void Engine::DXLoadSavedLevel(Package* package, const UnrealURL& url, const std:
 	if (!Level->EventManager)
 		Level->EventManager = std::make_unique<AIEventManager>(Level);
 
+	// UGameEngine::LoadMap of the Deus Ex Engine.dll sends PostPostBeginPlay to each actor of each map that it loads,
+	// also when the map has begun play before. The actors bind their conversations there, because ConListItems is transient.
+	size_t actorCount = Level->Actors.size();
+	for (size_t i = 0; i < actorCount; i++)
+	{
+		if (Level->Actors[i])
+			CallEvent(Level->Actors[i], "PostPostBeginPlay");
+	}
+
 	CallEvent(GameInfo, "DetailChange", {});
 }
 
