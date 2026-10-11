@@ -202,7 +202,7 @@ bool URootWindow::SetRootFocusWindow(UWindow* newFocusWindow)
 		if (oldFocusWindow)
 		{
 			if (oldFocusWindow->unfocusSound())
-				PlaySound(oldFocusWindow->unfocusSound(), {}, {}, {}, {});
+				oldFocusWindow->PlaySound(oldFocusWindow->unfocusSound(), {}, {}, {}, {});
 
 			oldFocusWindow->FocusLeftWindow();
 			if (oldFocusWindow != ancestor)
@@ -223,7 +223,7 @@ bool URootWindow::SetRootFocusWindow(UWindow* newFocusWindow)
 				}
 
 			if (newFocusWindow->focusSound())
-				PlaySound(newFocusWindow->focusSound(), {}, {}, {}, {});
+				newFocusWindow->PlaySound(newFocusWindow->focusSound(), {}, {}, {}, {});
 		}
 	}
 	return true;
