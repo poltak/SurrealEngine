@@ -48,6 +48,14 @@ void LightSystem::BeginFrame()
 {
 	FrameCounter++;
 
+	// UE1 gave the animated lights a new look in each frame, at a frame rate of about 30. Each new look builds the
+	// lightmaps of all surfaces near the light again. Do not do that more than 30 times per second at a high frame rate.
+	constexpr float lightAnimationRate = 30.0f;
+	float levelTime = engine->LevelInfo ? engine->LevelInfo->TimeSeconds() : 0.0f;
+	bool animateLights = levelTime < LastLightAnimationTime || levelTime - LastLightAnimationTime >= (1.0f / lightAnimationRate) - 0.001f;
+	if (animateLights)
+		LastLightAnimationTime = levelTime;
+
 	LightTree.Lights.clear();
 	for (UActor* actor : engine->Level->Actors)
 	{
@@ -63,7 +71,7 @@ void LightSystem::BeginFrame()
 		if (lightType > LT_Steady && lightType != LT_BackdropLight)
 		{
 			// Always invalidate lights that pulse and blink
-			needsUpdate = true;
+			needsUpdate = animateLights;
 		}
 
 		// Flicker lights flickered randomly every frame in UE1 but this looks terrible at higher refresh rates.
@@ -95,7 +103,7 @@ void LightSystem::BeginFrame()
 
 		case LE_Searchlight:
 			// This one only updates if it has a light period
-			if (actor->LightPeriod() != 0)
+			if (actor->LightPeriod() != 0 && animateLights)
 				needsUpdate = true;
 			break;
 
@@ -108,7 +116,8 @@ void LightSystem::BeginFrame()
 		case LE_Disco:
 		case LE_Interference:
 		case LE_Rotor:
-			needsUpdate = true;
+			if (animateLights)
+				needsUpdate = true;
 			break;
 		}
 

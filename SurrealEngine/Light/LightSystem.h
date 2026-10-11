@@ -25,6 +25,10 @@ struct LightmapTexture
 	int LastStaticUpdate = -1;
 	int LastDynamicUpdate = -1;
 	Array<vec3> StaticLightColors;
+
+	// Where the texels are in the world, and a checksum of the dynamic lights that are in the lightmap
+	LightmapTexelGrid Grid;
+	uint64_t DynamicLightSet = 0;
 };
 
 class VertexLight
@@ -217,6 +221,9 @@ private:
 
 	float AmbientGlowTime = 0.0f;
 	float AmbientGlowAmount = 0.0f;
+
+	// The level time of the last step of the animated lights
+	float LastLightAnimationTime = -1.0f;
 
 	Array<UActor*> TempDynLightList;
 	LightActorTree LightTree;

@@ -34,6 +34,92 @@ void LightmapBuilder::Setup(UModel* model, const Coords& mapCoords, int lightMap
 		illuminationmap.resize(size);
 
 	CalcWorldLocations(mapCoords, lmindex);
+	grid = GetTexelGrid();
+}
+
+LightmapTexelGrid LightmapBuilder::GetTexelGrid() const
+{
+	LightmapTexelGrid result;
+	result.Width = width;
+	result.Height = height;
+	if (width >= 2 && height >= 2)
+	{
+		// CalcWorldLocations puts the texels on a regular grid in the plane of the surface
+		result.Origin = points[0];
+		result.DU = (points[(size_t)width - 1] - points[0]) * (1.0f / (width - 1));
+		result.DV = (points[(size_t)(height - 1) * width] - points[0]) * (1.0f / (height - 1));
+		float sum = result.Origin.x + result.Origin.y + result.Origin.z + result.DU.x + result.DU.y + result.DU.z + result.DV.x + result.DV.y + result.DV.z;
+		result.Valid = std::isfinite(sum);
+	}
+	return result;
+}
+
+bool LightmapBuilder::GetLightRect(UActor* light, const LightmapTexelGrid& grid, LightmapTexelRect& rect)
+{
+	rect.x0 = 0;
+	rect.y0 = 0;
+	rect.x1 = grid.Width - 1;
+	rect.y1 = grid.Height - 1;
+	if (grid.Width <= 0 || grid.Height <= 0)
+		return false;
+
+	// A cylinder light has no limit along the Z axis. All other light effects give no light outside the light radius.
+	if (!grid.Valid || light->LightEffect() == LE_Cylinder)
+		return true;
+
+	float a = dot(grid.DU, grid.DU);
+	float b = dot(grid.DU, grid.DV);
+	float c = dot(grid.DV, grid.DV);
+	float det = a * c - b * b;
+	if (!(det > 1.0e-6f * a * c))
+		return true; // the grid axes are parallel, so there is no limit to calculate
+
+	// The light location in grid coordinates, and its distance from the plane of the surface
+	vec3 d = light->Location() - grid.Origin;
+	float dU = dot(d, grid.DU);
+	float dV = dot(d, grid.DV);
+	float u = (c * dU - b * dV) / det;
+	float v = (a * dV - b * dU) / det;
+	vec3 offPlane = d - grid.DU * u - grid.DV * v;
+
+	float radius = light->WorldLightRadius();
+	float inPlaneRadiusSquared = radius * radius - dot(offPlane, offPlane);
+	if (!std::isfinite(u) || !std::isfinite(v) || !std::isfinite(inPlaneRadiusSquared))
+		return true;
+	if (inPlaneRadiusSquared <= 0.0f)
+		return false; // the light does not reach the plane
+
+	// The light sphere cuts a circle from the plane. These are the limits of the circle along each grid axis, with one texel more.
+	float inPlaneRadius = std::sqrt(inPlaneRadiusSquared);
+	float uReach = inPlaneRadius * std::sqrt(c / det) + 1.0f;
+	float vReach = inPlaneRadius * std::sqrt(a / det) + 1.0f;
+	float x0 = std::floor(u - uReach);
+	float x1 = std::ceil(u + uReach);
+	float y0 = std::floor(v - vReach);
+	float y1 = std::ceil(v + vReach);
+	if (x1 < 0.0f || y1 < 0.0f || x0 > (float)(grid.Width - 1) || y0 > (float)(grid.Height - 1))
+		return false;
+
+	rect.x0 = (int)std::max(x0, 0.0f);
+	rect.y0 = (int)std::max(y0, 0.0f);
+	rect.x1 = (int)std::min(x1, (float)(grid.Width - 1));
+	rect.y1 = (int)std::min(y1, (float)(grid.Height - 1));
+	return true;
+}
+
+void LightmapBuilder::AddLight(UActor* light)
+{
+	LightmapTexelRect rect;
+	if (!GetLightRect(light, grid, rect))
+		return;
+
+	int count = rect.x1 - rect.x0 + 1;
+	for (int y = rect.y0; y <= rect.y1; y++)
+	{
+		size_t offset = (size_t)y * width + rect.x0;
+		Effect.Run(light, count, 1, WorldLocations() + offset, base, WorldNormal(), Shadow.Pixels() + offset, illuminationmap.data() + offset);
+	}
+	AddLightContribution(light, rect);
 }
 
 void LightmapBuilder::SetAmbientLight(UZoneInfo* zoneActor)
@@ -79,8 +165,7 @@ void LightmapBuilder::AddStaticLights(UModel* model, int lightMap)
 			if (light->LightType() != LT_None && light->LightBrightness() > 0)
 			{
 				Shadow.Load(model, lightMap, lightindex);
-				Effect.Run(light, width, height, WorldLocations(), base, WorldNormal(), Shadow.Pixels(), illuminationmap.data());
-				AddLightContribution(light);
+				AddLight(light);
 			}
 		}
 	}
@@ -94,74 +179,62 @@ void LightmapBuilder::AddDynamicLights(UModel* model, int lightMap, const Array<
 	{
 		if (light->LightType() != LT_None && light->LightBrightness() > 0)
 		{
-			Effect.Run(light, width, height, WorldLocations(), base, WorldNormal(), Shadow.Pixels(), illuminationmap.data());
-			AddLightContribution(light);
+			AddLight(light);
 		}
 	}
 }
 
-void LightmapBuilder::AddLightContribution(UActor* light)
+void LightmapBuilder::AddLightContribution(UActor* light, const LightmapTexelRect& rect)
 {
-#if 1
 	vec3 lightcolor = GetLightColor(light);
 	float lightcolorR = lightcolor.r;
 	float lightcolorG = lightcolor.g;
 	float lightcolorB = lightcolor.b;
-	const float* src = illuminationmap.data();
-	float* dest = (float*)lightcolors.data();
-	int size = width * height;
+	int size = rect.x1 - rect.x0 + 1;
+
+	for (int y = rect.y0; y <= rect.y1; y++)
+	{
+		const float* src = illuminationmap.data() + (size_t)y * width + rect.x0;
+		float* dest = (float*)(lightcolors.data() + (size_t)y * width + rect.x0);
 
 #ifdef USE_SSE2
-	__m128 mmlightcolor0 = _mm_setr_ps(lightcolorR, lightcolorG, lightcolorB, lightcolorR);
-	__m128 mmlightcolor1 = _mm_setr_ps(lightcolorG, lightcolorB, lightcolorR, lightcolorG);
-	__m128 mmlightcolor2 = _mm_setr_ps(lightcolorB, lightcolorR, lightcolorG, lightcolorB);
-	int sse_size = size / 4 * 4;
-	for (size_t i = 0; i < sse_size; i += 4)
-	{
-		// To do: memory align buffers
-		__m128 s = _mm_loadu_ps(src);
-		__m128 s0 = _mm_shuffle_ps(s, s, _MM_SHUFFLE(1, 0, 0, 0));
-		__m128 s1 = _mm_shuffle_ps(s, s, _MM_SHUFFLE(2, 2, 1, 1));
-		__m128 s2 = _mm_shuffle_ps(s, s, _MM_SHUFFLE(3, 3, 3, 2));
-		__m128 one = _mm_set_ps1(1.0f);
-		_mm_storeu_ps(dest, _mm_min_ps(_mm_add_ps(_mm_loadu_ps(dest), _mm_mul_ps(s0, mmlightcolor0)), one));
-		_mm_storeu_ps(dest + 4, _mm_min_ps(_mm_add_ps(_mm_loadu_ps(dest + 4), _mm_mul_ps(s1, mmlightcolor1)), one));
-		_mm_storeu_ps(dest + 8, _mm_min_ps(_mm_add_ps(_mm_loadu_ps(dest + 8), _mm_mul_ps(s2, mmlightcolor2)), one));
-		src += 4;
-		dest += 3 * 4;
-	}
+		__m128 mmlightcolor0 = _mm_setr_ps(lightcolorR, lightcolorG, lightcolorB, lightcolorR);
+		__m128 mmlightcolor1 = _mm_setr_ps(lightcolorG, lightcolorB, lightcolorR, lightcolorG);
+		__m128 mmlightcolor2 = _mm_setr_ps(lightcolorB, lightcolorR, lightcolorG, lightcolorB);
+		int sse_size = size / 4 * 4;
+		for (int i = 0; i < sse_size; i += 4)
+		{
+			// To do: memory align buffers
+			__m128 s = _mm_loadu_ps(src);
+			__m128 s0 = _mm_shuffle_ps(s, s, _MM_SHUFFLE(1, 0, 0, 0));
+			__m128 s1 = _mm_shuffle_ps(s, s, _MM_SHUFFLE(2, 2, 1, 1));
+			__m128 s2 = _mm_shuffle_ps(s, s, _MM_SHUFFLE(3, 3, 3, 2));
+			__m128 one = _mm_set_ps1(1.0f);
+			_mm_storeu_ps(dest, _mm_min_ps(_mm_add_ps(_mm_loadu_ps(dest), _mm_mul_ps(s0, mmlightcolor0)), one));
+			_mm_storeu_ps(dest + 4, _mm_min_ps(_mm_add_ps(_mm_loadu_ps(dest + 4), _mm_mul_ps(s1, mmlightcolor1)), one));
+			_mm_storeu_ps(dest + 8, _mm_min_ps(_mm_add_ps(_mm_loadu_ps(dest + 8), _mm_mul_ps(s2, mmlightcolor2)), one));
+			src += 4;
+			dest += 3 * 4;
+		}
 #else
-	int sse_size = 0;
+		int sse_size = 0;
 #endif
-	for (size_t i = sse_size; i < size; i++)
-	{
-		float s = *src;
-		float r = s * lightcolorR;
-		float g = s * lightcolorG;
-		float b = s * lightcolorB;
-		r = r <= 1.0f ? r : 1.0f;
-		g = g <= 1.0f ? g : 1.0f;
-		b = b <= 1.0f ? b : 1.0f;
-		dest[0] += r;
-		dest[1] += g;
-		dest[2] += b;
-		src++;
-		dest += 3;
+		for (int i = sse_size; i < size; i++)
+		{
+			float s = *src;
+			float r = s * lightcolorR;
+			float g = s * lightcolorG;
+			float b = s * lightcolorB;
+			r = r <= 1.0f ? r : 1.0f;
+			g = g <= 1.0f ? g : 1.0f;
+			b = b <= 1.0f ? b : 1.0f;
+			dest[0] += r;
+			dest[1] += g;
+			dest[2] += b;
+			src++;
+			dest += 3;
+		}
 	}
-#else
-	size_t count = (size_t)width * height;
-	vec3 lightcolor = GetLightColor(light);
-	const float* src = illuminationmap.data();
-	vec3* dest = lightcolors.data();
-	for (size_t i = 0; i < count; i++)
-	{
-		vec3 color = src[i] * lightcolor;
-		color.r = std::min(color.r, 1.0f);
-		color.g = std::min(color.g, 1.0f);
-		color.b = std::min(color.b, 1.0f);
-		dest[i] += color;
-	}
-#endif
 }
 
 vec3 LightmapBuilder::GetLightColor(UActor* light)

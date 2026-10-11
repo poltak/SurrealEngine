@@ -103,10 +103,15 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 
 	int lastStaticUpdate = -100;
 	int lastDynamicUpdate = -100;
+	uint64_t dynamicLightSet = 0;
 	TempDynLightList.clear();
+
+	auto& lmtexture = lmtextures[cacheID];
 
 	if (!dynamicMover)
 	{
+		// The texel grid of a level surface does not change, so the last build of the lightmap tells which lights can reach it
+		const LightmapTexelGrid* grid = lmtexture ? &lmtexture->Grid : nullptr;
 		// Examine all the lights that are statically baked into the map:
 
 		if (lmindex.LightActors >= 0)
@@ -133,9 +138,16 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 				light->Light.LightmapCheckCounter = checkCounter;
 				if (!light->bStatic() && !light->bNoDelete() && light->bSpecialLit() == specialLit)
 				{
+					// CollectLights uses the bounding sphere of the surface, which is very large for a floor or a water surface.
+					// A light that reaches no texel does not change the lightmap and must not cause a new build.
+					LightmapTexelRect rect;
+					if (grid && !LightmapBuilder::GetLightRect(light, *grid, rect))
+						continue;
+
 					CheckLight(light);
 					lastDynamicUpdate = std::max(lastDynamicUpdate, light->Light.LastUpdate);
 					TempDynLightList.push_back(light);
+					dynamicLightSet += (uint64_t)(uintptr_t)light * 0x9E3779B97F4A7C15ULL;
 				}
 			}
 		}
@@ -150,14 +162,15 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 			CheckLight(light);
 			lastDynamicUpdate = std::max(lastDynamicUpdate, light->Light.LastUpdate);
 			TempDynLightList.push_back(light);
+			dynamicLightSet += (uint64_t)(uintptr_t)light * 0x9E3779B97F4A7C15ULL;
 		}
 	}
 
 	// If anything changed update the lightmap:
 
+	// The checksum of the light set finds a dynamic light that went away. The update numbers of the other lights do not show that.
 	bool bRealtimeChanged = false;
-	auto& lmtexture = lmtextures[cacheID];
-	if (!lmtexture || lmtexture->LastStaticUpdate != lastStaticUpdate || lmtexture->LastDynamicUpdate != lastDynamicUpdate)
+	if (!lmtexture || lmtexture->LastStaticUpdate != lastStaticUpdate || lmtexture->LastDynamicUpdate != lastDynamicUpdate || lmtexture->DynamicLightSet != dynamicLightSet)
 	{
 		engine->render->Stats.LightmapsUpdated++;
 
@@ -203,6 +216,8 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 
 		lmtexture->LastStaticUpdate = lastStaticUpdate;
 		lmtexture->LastDynamicUpdate = lastDynamicUpdate;
+		lmtexture->DynamicLightSet = dynamicLightSet;
+		lmtexture->Grid = Builder.GetTexelGrid();
 		bRealtimeChanged = true;
 	}
 
