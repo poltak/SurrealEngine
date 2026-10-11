@@ -24,6 +24,7 @@ public:
 	void ShowCursor(std::optional<bool> bShow);
 	void StretchRawBackground(std::optional<bool> bStretch);
 
+	void InitWindow() override;
 	void WindowReady() override;
 	void PostDrawWindow(UGC* gc) override;
 
@@ -46,7 +47,10 @@ public:
 	UWindow* GetKeyboardTarget();
 	bool HandleVirtualKeyboard(EInputKey key, EInputType action, bool repeat);
 
+	void UpdateInputGrab();
+
 	bool keyDownState[256] = {};
+	bool inputGrabbed = false;
 
 	UTexture*& DefaultMoveCursor() { return Value<UTexture*>(PropOffsets_RootWindow.DefaultMoveCursor); }
 	UWindow*& FocusWindow() { return Value<UWindow*>(PropOffsets_RootWindow.FocusWindow); }

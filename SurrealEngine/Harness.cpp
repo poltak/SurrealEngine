@@ -261,7 +261,7 @@ static Point ParsePoint(Engine* engine, const std::string& args)
 
 	// The Deus Ex root window draws its own cursor and moves it with relative mouse input only.
 	// Put that cursor at the same fraction of the root window.
-	if (engine->dxRootWindow && engine->dxRootWindow->IsCursorVisible())
+	if (engine->dxRootWindow && engine->dxRootWindow->IsModalOpen())
 		engine->dxRootWindow->SetRootCursorPos((float)(fx * engine->dxRootWindow->Width()), (float)(fy * engine->dxRootWindow->Height()));
 
 	double scale = engine->window->GetDpiScale();

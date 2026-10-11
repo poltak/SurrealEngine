@@ -37,7 +37,9 @@ bool URootWindow::IsRenderingEnabled()
 
 void URootWindow::LockMouse(std::optional<bool> bLockMove, std::optional<bool> bLockButton)
 {
-	LogUnimplemented("RootWindow.LockMouse");
+	// As XRootWindow::LockMouse. An argument that the script leaves out is true.
+	bMouseMoveLocked() = !bLockMove || *bLockMove;
+	bMouseButtonLocked() = !bLockButton || *bLockButton;
 }
 
 void URootWindow::SetDefaultEditCursor(std::optional<UObject*> newEditCursor)
@@ -102,6 +104,16 @@ void URootWindow::StretchRawBackground(std::optional<bool> bStretch)
 	bStretchRawBackground() = !bStretch || *bStretch;
 }
 
+void URootWindow::InitWindow()
+{
+	// As XRootWindow::Init: the cursor shows and the mouse is free
+	bCursorVisible() = true;
+	bMouseMoved() = true;
+	bMouseMoveLocked() = false;
+	bMouseButtonLocked() = false;
+	UModalWindow::InitWindow();
+}
+
 void URootWindow::WindowReady()
 {
 	SetRootCursorPos(GetVirtualWidth() * 0.5f, GetVirtualHeight() * 0.5f);
@@ -110,15 +122,10 @@ void URootWindow::WindowReady()
 
 bool URootWindow::IsCursorVisible()
 {
-	// To do: is this correct? There is also URootWindow::ShowCursor - it isn't called by unrealscript when a modal is shown
-	for (UWindow* cur = firstChild(); cur; cur = cur->nextSibling())
-	{
-		if (UObject::TryCast<UModalWindow>(cur))
-		{
-			return true;
-		}
-	}
-	return false;
+	// As XRootWindow::PaintWindows: the cursor shows while the window system has the mouse, unless the script hid it
+	// with ShowCursor. The script hides it while a person speaks in a conversation, in the credits, and while the
+	// keyboard screen waits for a key.
+	return IsModalOpen() && bCursorVisible();
 }
 
 void URootWindow::PostDrawWindow(UGC* gc)
@@ -299,13 +306,43 @@ bool URootWindow::OnWindowMouseMove(const Point& pos)
 	return IsModalOpen();
 }
 
+// Mouse routing follows XRootWindow in Extension.dll (build 1112fm):
+//
+// - XRootWindow::Process gives a mouse button to the window system only while a modal window is visible.
+//   With no visible modal window, the game input gets it. While the mouse is grabbed, the window system
+//   consumes every mouse button event, handled or not.
+// - XRootWindow::GrabMouseEvents forgets the buttons that are down when the grab starts. So a button that
+//   the player pressed in the game gives no release event to a window.
+// - XRootWindow::HandleButtons drops the buttons and XRootWindow::HandleMouse drops the movement while the
+//   script has them locked with LockMouse.
+
+void URootWindow::UpdateInputGrab()
+{
+	bool grabbed = IsModalOpen();
+	if (grabbed && !inputGrabbed)
+	{
+		for (bool& down : keyDownState)
+			down = false;
+	}
+	inputGrabbed = grabbed;
+}
+
 bool URootWindow::OnWindowMouseDown(const Point& pos, EInputKey key)
 {
+	UpdateInputGrab();
+	if ((int)key >= 0 && (int)key < 256)
+		keyDownState[key] = true;
+
+	if (!IsModalOpen())
+		return false;
+	if (bMouseButtonLocked())
+		return true;
+
 	float relativeX = 0.0f, relativeY = 0.0f;
 	UWindow* focus = GetCursorFocus(relativeX, relativeY);
 
 	if (!focus->bIsSensitive())
-		return IsModalOpen();
+		return true;
 
 	if (focus->RawMouseButtonPressed(relativeX, relativeY, key, EInputType::IST_Press))
 		return true;
@@ -320,7 +357,7 @@ bool URootWindow::OnWindowMouseDown(const Point& pos, EInputKey key)
 			return true;
 	}
 
-	return IsModalOpen();
+	return true;
 }
 
 // XRootWindow::HandleButtons counts the clicks. A press on the same window with the same button, before the
@@ -368,6 +405,19 @@ bool URootWindow::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
 
 bool URootWindow::OnWindowMouseUp(const Point& pos, EInputKey key)
 {
+	UpdateInputGrab();
+	bool wasDown = true;
+	if ((int)key >= 0 && (int)key < 256)
+	{
+		wasDown = keyDownState[key];
+		keyDownState[key] = false;
+	}
+
+	if (!IsModalOpen())
+		return false;
+	if (!wasDown || bMouseButtonLocked())
+		return true;
+
 	float relativeX = 0.0f, relativeY = 0.0f;
 	UWindow* focus = GetCursorFocus(relativeX, relativeY);
 
@@ -375,7 +425,7 @@ bool URootWindow::OnWindowMouseUp(const Point& pos, EInputKey key)
 		return true;
 
 	if (!focus->bIsSensitive())
-		return IsModalOpen();
+		return true;
 
 	int numClicks = UpdateClickCount(focus, key, false);
 	for (UWindow* cur = focus; cur; cur = cur->parentOwner())
@@ -384,7 +434,7 @@ bool URootWindow::OnWindowMouseUp(const Point& pos, EInputKey key)
 			return true;
 	}
 
-	return IsModalOpen();
+	return true;
 }
 
 bool URootWindow::OnWindowMouseWheel(const Point& pos, EInputKey key)
@@ -398,12 +448,17 @@ bool URootWindow::OnWindowMouseWheel(const Point& pos, EInputKey key)
 
 bool URootWindow::OnWindowRawMouseMove(int dx, int dy)
 {
-	if (IsCursorVisible())
+	// As XRootWindow::SetMouseDelta and HandleMouse: the cursor moves while the window system has the mouse, also
+	// when the cursor does not show. It does not move while the script has the movement locked.
+	if (!IsModalOpen())
+		return false;
+
+	if (!bMouseMoveLocked())
 	{
 		float mouseSpeed = 1.0f / GetVirtualScale();
 		SetRootCursorPos(MouseX() + dx * mouseSpeed, MouseY() + dy * mouseSpeed);
 	}
-	return IsModalOpen();
+	return true;
 }
 
 // Keyboard routing follows XRootWindow in Extension.dll (build 1112fm):
@@ -485,6 +540,7 @@ bool URootWindow::OnWindowKeyChar(std::string chars)
 
 bool URootWindow::OnWindowKeyDown(EInputKey key)
 {
+	UpdateInputGrab();
 	bool repeat = false;
 	if ((int)key >= 0 && (int)key < 256)
 	{
@@ -501,6 +557,7 @@ bool URootWindow::OnWindowKeyDown(EInputKey key)
 
 bool URootWindow::OnWindowKeyUp(EInputKey key)
 {
+	UpdateInputGrab();
 	bool wasDown = true;
 	if ((int)key >= 0 && (int)key < 256)
 	{
