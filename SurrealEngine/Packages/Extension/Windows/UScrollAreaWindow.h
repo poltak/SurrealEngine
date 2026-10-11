@@ -13,7 +13,12 @@ public:
 	void InitWindow() override;
 	void ConfigurationChanged() override;
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
-	void DrawWindow(UGC* gc) override;
+	void ChildRequestedVisibilityChange(UWindow* childWin, bool bNewVisibility) override;
+	void DescendantRemoved(UWindow* descendant) override;
+	bool ScaleRangeChanged(UWindow* scale, int fromTick, int toTick, float fromValue, float toValue, bool bFinal) override;
+	bool ClipAttributesChanged(UWindow* clip, int newClipWidth, int newClipHeight, int newChildWidth, int newChildHeight) override;
+	bool ClipPositionChanged(UWindow* clip, int newCol, int newRow) override;
+	bool MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks) override;
 
 	void AutoHideScrollbars(std::optional<bool> bHide);
 	void EnableScrolling(std::optional<bool> bHScrolling, std::optional<bool> bVScrolling);
@@ -35,4 +40,16 @@ public:
 	float& scrollbarDistance() { return Value<float>(PropOffsets_ScrollAreaWindow.scrollbarDistance); }
 	UScaleWindow*& vScale() { return Value<UScaleWindow*>(PropOffsets_ScrollAreaWindow.vScale); }
 	UScaleManagerWindow*& vScaleMgr() { return Value<UScaleManagerWindow*>(PropOffsets_ScrollAreaWindow.vScaleMgr); }
+
+private:
+	// The place and size of the clip window and of the two scroll bars, and the size that the scroll area wants
+	struct Layout
+	{
+		float clipX = 0.0f, clipY = 0.0f, clipWidth = 0.0f, clipHeight = 0.0f;
+		float hX = 0.0f, hY = 0.0f, hWidth = 0.0f, hHeight = 0.0f;
+		float vX = 0.0f, vY = 0.0f, vWidth = 0.0f, vHeight = 0.0f;
+		float totalWidth = 0.0f, totalHeight = 0.0f;
+	};
+
+	Layout ComputeChildSizes(bool bWidthSpecified, float width, bool bHeightSpecified, float height);
 };

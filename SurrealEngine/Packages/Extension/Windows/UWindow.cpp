@@ -1464,6 +1464,15 @@ bool UWindow::ClipAttributesChanged(UWindow* scale, int newClipWidth, int newCli
 		}).ToBool();
 }
 
+bool UWindow::ClipPositionChanged(UWindow* clip, int newCol, int newRow)
+{
+	return CallEvent(this, "ClipPositionChanged", {
+		ExpressionValue::ObjectValue(clip),
+		ExpressionValue::IntValue(newCol),
+		ExpressionValue::IntValue(newRow)
+		}).ToBool();
+}
+
 bool UWindow::ListRowActivated(UWindow* list, int rowId)
 {
 	return CallEvent(this, "ListRowActivated", {

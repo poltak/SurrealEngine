@@ -20,6 +20,7 @@ public:
 	void SetBorderPattern(UObject* NewTexture);
 	void SetEnumeration(int tickPos, const std::string& newStr);
 	void SetNumTicks(int newNumTicks);
+	void SetRanges(int newSpan, int newNumTicks);
 	void SetScaleBorder(std::optional<float> newBorderSize, std::optional<Color> NewColor);
 	void SetScaleColor(const Color& NewColor);
 	void SetScaleMargins(std::optional<float> marginWidth, std::optional<float> marginHeight);
@@ -44,10 +45,12 @@ public:
 
 	void InitWindow() override;
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
+	void ConfigurationChanged() override;
 	void DrawWindow(UGC* gc) override;
 	bool MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks) override;
 	bool MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks) override;
 	void MouseMoved(float newX, float newY) override;
+	void Tick(float timeElapsed) override;
 
 	float& RemainingTime() { return Value<float>(PropOffsets_ScaleWindow.RemainingTime); }
 	float& ThumbHeight() { return Value<float>(PropOffsets_ScaleWindow.ThumbHeight); }
@@ -127,12 +130,27 @@ public:
 	std::string& valueFmt() { return Value<std::string>(PropOffsets_ScaleWindow.valueFmt); }
 
 private:
-	void DrawHorzScrollbar(UGC* gc);
-	void DrawVertScrollbar(UGC* gc);
-	void DrawHorzSlider(UGC* gc);
-	void DrawVertSlider(UGC* gc);
-	void DispatchScalePositionChanged(int newTickPosition, float newValue, bool bFinal);
+	struct ThumbCaps
+	{
+		UTexture* preCap = nullptr;
+		UTexture* postCap = nullptr;
+		float preXOff = 0.0f, preYOff = 0.0f, preW = 0.0f, preH = 0.0f;
+		float postXOff = 0.0f, postYOff = 0.0f, postW = 0.0f, postH = 0.0f;
+	};
 
-	Array<std::string> ticks;
-	float value = 0.0f;
+	bool IsVertical() { return (EOrientation)orientation() == EOrientation::Vertical; }
+	float TickToPixel(int tick);
+	int PixelToTick(float pixel);
+	float TickToValue(int tick);
+	int ValueToTick(float value);
+	void ComputeTextureSize(UTexture* texture, float width, float height, float border, float& outWidth, float& outHeight);
+	void ComputeThumbConfig();
+	void ChangeThumbPosition(int newPos, bool force, bool final);
+	void ChangeScalePosition(bool final);
+	void ChangeScaleAttributes();
+	void DrawScaleTexture(UGC* gc, UTexture* texture, float x, float y, float w, float h, bool repeat, uint8_t style, const Color& color, float borderSize, const Color& borderColor, const ThumbCaps& caps);
+	static void DrawIconPattern(UGC* gc, float x, float y, float w, float h, float orgX, float orgY, float srcW, float srcH, UTexture* texture);
+
+	Array<std::string> enumStrings;
+	bool grabbedMouse = false;
 };

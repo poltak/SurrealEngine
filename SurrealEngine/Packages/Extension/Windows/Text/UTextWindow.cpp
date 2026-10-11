@@ -169,6 +169,17 @@ void UTextWindow::ParentRequestedPreferredSize(bool bWidthSpecified, float& pref
 	UWindow::ParentRequestedPreferredSize(bWidthSpecified, preferredWidth, bHeightSpecified, preferredHeight);
 }
 
+// As XTextWindow::ParentRequestedGranularity: a clip window moves a text window by lines
+void UTextWindow::ParentRequestedGranularity(float& hGranularity, float& vGranularity)
+{
+	if (UFont* font = normalFont())
+	{
+		hGranularity = 1.0f;
+		vGranularity = (float)font->GetGlyph('X').VSize;
+	}
+	UWindow::ParentRequestedGranularity(hGranularity, vGranularity);
+}
+
 void UTextWindow::DrawWindow(UGC* gc)
 {
 	if (normalFont()) // When should text windows draw their text? They are used for buttons, which sometimes draw themselves via UI

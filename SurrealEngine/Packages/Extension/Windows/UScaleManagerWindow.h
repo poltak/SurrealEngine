@@ -20,8 +20,14 @@ public:
 	void StretchScaleField(std::optional<bool> bNewStretch);
 	void StretchValueField(std::optional<bool> bNewStretch);
 
+	void InitWindow() override;
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
+	void ChildRequestedVisibilityChange(UWindow* childWin, bool bNewVisibility) override;
 	void ConfigurationChanged() override;
+	void ChildRemoved(UWindow* child) override;
+	bool ScalePositionChanged(UWindow* scale, int newTickPosition, float newValue, bool bFinal) override;
+	bool ScaleAttributesChanged(UWindow* scale, int tickPosition, int tickSpan, int numTicks) override;
+	bool ButtonActivated(UWindow* button) override;
 
 	UScaleWindow*& Scale() { return Value<UScaleWindow*>(PropOffsets_ScaleManagerWindow.Scale); }
 	float& Spacing() { return Value<float>(PropOffsets_ScaleManagerWindow.Spacing); }
@@ -35,4 +41,8 @@ public:
 	float& marginWidth() { return Value<float>(PropOffsets_ScaleManagerWindow.marginWidth); }
 	uint8_t& orientation() { return Value<uint8_t>(PropOffsets_ScaleManagerWindow.orientation); }
 	UTextWindow*& valueField() { return Value<UTextWindow*>(PropOffsets_ScaleManagerWindow.valueField); }
+
+private:
+	bool IsDescendant(UWindow* window);
+	void ChangeValueField();
 };

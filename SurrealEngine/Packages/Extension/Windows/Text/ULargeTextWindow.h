@@ -9,6 +9,8 @@ public:
 
 	void SetVerticalSpacing(std::optional<float> newVSpace);
 
+	void ParentRequestedGranularity(float& hGranularity, float& vGranularity) override;
+
 	float& lineHeight() { return Value<float>(PropOffsets_LargeTextWindow.lineHeight); }
 	//DynamicArray& queryRowData() { return Value<DynamicArray>(PropOffsets_LargeTextWindow.queryRowData); }
 	//XTextParams& queryTextParams() { return Value<XTextParams>(PropOffsets_LargeTextWindow.queryTextParams); }

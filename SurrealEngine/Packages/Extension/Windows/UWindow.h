@@ -292,6 +292,7 @@ public:
 	virtual bool ScaleRangeChanged(UWindow* scale, int fromTick, int toTick, float fromValue, float toValue, bool bFinal);
 	virtual bool ScaleAttributesChanged(UWindow* scale, int tickPosition, int tickSpan, int numTicks);
 	virtual bool ClipAttributesChanged(UWindow* scale, int newClipWidth, int newClipHeight, int newChildWidth, int newChildHeight);
+	virtual bool ClipPositionChanged(UWindow* clip, int newCol, int newRow);
 	virtual bool ListRowActivated(UWindow* list, int rowId);
 	virtual bool ListSelectionChanged(UWindow* list, int numSelections, int focusRowId);
 	virtual bool TextChanged(UWindow* edit, bool bModified);

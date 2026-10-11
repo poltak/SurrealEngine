@@ -9,7 +9,12 @@ public:
 
 	void InitWindow() override;
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
+	void ChildRequestedVisibilityChange(UWindow* childWin, bool bNewVisibility) override;
+	void ChildRequestedShowArea(UWindow* child, float showX, float showY, float showWidth, float showHeight) override;
 	void ConfigurationChanged() override;
+
+	UWindow* GetChildWindow();
+	void QueryClipPreferredSize(bool bWidthSpecified, float width, float& outWidth, bool& outChildWider, bool bHeightSpecified, float height, float& outHeight, bool& outChildHigher);
 
 	void EnableSnapToUnits(std::optional<bool> bNewSnapToUnits);
 	void ForceChildSize(std::optional<bool> bNewForceChildWidth, std::optional<bool> bNewForceChildHeight);
@@ -40,5 +45,19 @@ public:
 	float& vMult() { return Value<float>(PropOffsets_ClipWindow.vMult); }
 
 private:
-	vec2 ChildPos = { 0.0f, 0.0f };
+	// The position in units and the size in pixels that the child gets
+	struct ChildConfig
+	{
+		int hPos = 0;
+		int vPos = 0;
+		float width = 0.0f;
+		float height = 0.0f;
+	};
+
+	void GetChildUnits(UWindow* child, float& hUnit, float& vUnit);
+	void ClampChildPosition(float& x, float& y, float childWidth, float childHeight);
+	ChildConfig GetChildPreferredSize(UWindow* child, bool bWidthSpecified, float width, bool bHeightSpecified, float height);
+	void GetClipPreferredSize(UWindow* child, bool bWidthSpecified, float& width, bool bHeightSpecified, float& height, ChildConfig* childConfig);
+	void ReconfigureChild(UWindow* child, int hPos, int vPos, float width, float height);
+	static int ShowAreaMove(int start, int span, int area);
 };
