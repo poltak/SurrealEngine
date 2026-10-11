@@ -3,6 +3,7 @@
 #include "NParticleIterator.h"
 #include "VM/NativeFunc.h"
 #include "Utils/Logger.h"
+#include "Packages/DeusEx/ParticleSystem.h"
 
 void NParticleIterator::RegisterFunctions()
 {
@@ -11,5 +12,5 @@ void NParticleIterator::RegisterFunctions()
 
 void NParticleIterator::UpdateParticles(UObject* Self, float DeltaTime)
 {
-	LogUnimplemented("ParticleIterator.UpdateParticles");
+	DeusExParticles::Update(Self, DeltaTime);
 }

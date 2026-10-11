@@ -473,6 +473,8 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/Packages/Core/Properties/UStructProperty.cpp
 	SurrealEngine/Packages/Core/Properties/UStructProperty.h
 	SurrealEngine/Packages/DeusEx/AIMovement.cpp
+	SurrealEngine/Packages/DeusEx/ParticleSystem.cpp
+	SurrealEngine/Packages/DeusEx/ParticleSystem.h
 	SurrealEngine/Packages/DeusEx/AIEventManager.cpp
 	SurrealEngine/Packages/DeusEx/AIEventManager.h
 	SurrealEngine/Packages/DeusEx/AIPerception.cpp

@@ -6,6 +6,7 @@
 #include "VM/ScriptCall.h"
 #include "Engine.h"
 #include "VisibleFrame.h"
+#include "Packages/DeusEx/ParticleSystem.h"
 #include "Packages/Engine/Actors/Pawn/UPawn.h"
 #include "Packages/Extension/Windows/UViewportWindow.h"
 #include "Packages/Extension/Windows/TabGroup/URootWindow.h"
@@ -19,10 +20,16 @@ void RenderSubsystem::DrawScene()
 	TextureFrameCounter++;
 
 	// Make sure all actors are at the right location in the BSP
+	bool deusEx = engine->LaunchInfo.IsDeusEx();
 	for (UActor* actor : engine->Level->Actors)
 	{
 		if (actor)
+		{
+			// The original renderer makes the render interface of an actor that has a render iterator class
+			if (deusEx && actor->RenderIteratorClass())
+				DeusExParticles::GetIterator(actor, true);
 			actor->UpdateBspInfo();
+		}
 	}
 
 	mat4 worldToView = Coords::ViewToRenderDev().ToMatrix() * Coords::Rotation(engine->CameraRotation).Inverse().ToMatrix() * Coords::Location(engine->CameraLocation).ToMatrix();

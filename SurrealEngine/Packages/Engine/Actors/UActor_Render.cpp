@@ -6,6 +6,8 @@
 #include "Packages/Engine/Resources/Level/UModel.h"
 #include "Packages/Engine/Resources/Mesh/USkeletalMesh.h"
 #include "Packages/Engine/Resources/Textures/UTexture.h"
+#include "Packages/DeusEx/ParticleSystem.h"
+#include "Engine.h"
 
 void UActor::UpdateBspInfo()
 {
@@ -43,6 +45,10 @@ void UActor::UpdateBspInfo()
 			bbox.min = vec3(0.0f);
 			bbox.max = vec3(0.0f);
 		}
+	}
+	else if (engine->LaunchInfo.IsDeusEx() && RenderIteratorClass() && DeusExParticles::GetBounds(this, bbox))
+	{
+		// A particle generator. The box has the generator and its particles in it.
 	}
 	else
 	{

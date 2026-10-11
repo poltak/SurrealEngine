@@ -13,4 +13,5 @@ public:
 
 	EDrawType Type = DT_None;
 	UActor* Actor = nullptr;
+	bool Particles = false; // Deus Ex: Actor is a particle generator, draw its particles
 };

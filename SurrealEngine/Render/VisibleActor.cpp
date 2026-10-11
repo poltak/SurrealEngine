@@ -10,6 +10,8 @@
 #include "Packages/Engine/Actors/Pawn/UPawn.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Engine/Actors/Brush/UMover.h"
+#include "Packages/Core/UClass.h"
+#include "Packages/DeusEx/ParticleSystem.h"
 
 void VisibleActor::Process(VisibleFrame* frame, UActor* actor)
 {
@@ -27,6 +29,27 @@ void VisibleActor::Process(VisibleFrame* frame, UActor* actor)
 		{
 			frame->Coronas.push_back(actor);
 		}
+	}
+
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// A particle generator has no draw type of its own. Its render iterator gives the sprites to draw.
+		if (actor->RenderIteratorClass())
+		{
+			if (frame->Clipper.IsAABBVisible(actor->BspInfo.BoundingBox) && DeusExParticles::Prepare(frame, actor))
+			{
+				Type = DT_None;
+				Actor = actor;
+				Particles = true;
+				frame->Actors.push_back(*this);
+				Particles = false;
+			}
+			return;
+		}
+
+		// The proxy sprite is drawn for each particle of its generator only
+		if (actor->Class && actor->Class->Name == "ParticleProxy")
+			return;
 	}
 
 	if (actor->bHidden())
@@ -84,7 +107,12 @@ void VisibleActor::Process(VisibleFrame* frame, UActor* actor)
 
 void VisibleActor::DrawOpaque(VisibleFrame* frame)
 {
-	if (Type == DT_Mesh)
+	if (Particles)
+	{
+		vec3 v = Actor->Location() - frame->ViewLocation.xyz();
+		frame->Translucents.emplace_back(*this, dot(v, v));
+	}
+	else if (Type == DT_Mesh)
 	{
 		VisibleMesh vismesh;
 		if (vismesh.DrawMesh(frame, Actor, false, false))
@@ -112,7 +140,11 @@ void VisibleActor::DrawOpaque(VisibleFrame* frame)
 
 void VisibleActor::DrawTranslucent(VisibleFrame* frame)
 {
-	if (Type == DT_Mesh)
+	if (Particles)
+	{
+		DeusExParticles::Draw(frame, Actor);
+	}
+	else if (Type == DT_Mesh)
 	{
 		VisibleMesh vismesh;
 		vismesh.DrawMesh(frame, Actor, false, true);
