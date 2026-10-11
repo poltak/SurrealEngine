@@ -209,14 +209,16 @@ public:
 		if (alDevice == nullptr)
 			Exception::Throw("Failed to initialize OpenAL device");
 
+		// OpenAL Soft has an output limiter, but with a float output (Core Audio on a Mac) it is off unless the
+		// program asks for it. Speech at full volume with music in the same mix goes to 1.8 times full scale,
+		// and the sound hardware then cuts the peaks off, which you hear as distortion. The limiter lowers the gain there.
 		const ALCint ctxAttribs[] =
 		{
-			ALC_FREQUENCY, inFrequency,
-			ALC_REFRESH, 60,
-			ALC_SYNC, ALC_FALSE
+			ALC_OUTPUT_LIMITER_SOFT, ALC_TRUE,
+			0
 		};
 
-		alContext = alcCreateContext(alDevice, NULL);
+		alContext = alcCreateContext(alDevice, ctxAttribs);
 		if (alContext == nullptr)
 			Exception::Throw("Failed to initialize OpenAL context");
 
