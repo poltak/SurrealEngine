@@ -214,6 +214,7 @@ public:
 
 	void LoadEngineSettings();
 
+	UClass* FindLoadedClass(const NameString& name);
 	void LoadKeybindings();
 	void ResetKeyboard();
 	std::string InputIniSection() const;

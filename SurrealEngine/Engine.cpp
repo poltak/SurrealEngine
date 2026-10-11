@@ -1169,6 +1169,52 @@ std::string Engine::ParseClassName(std::string className)
 	return packages->GetIniValue("system", sectionName, keyName);
 }
 
+// The text of a console command after its first "tokens" words
+static std::string RestOfCommand(const std::string& commandline, int tokens)
+{
+	size_t pos = 0;
+	for (int token = 0; token < tokens; token++)
+	{
+		pos = commandline.find_first_not_of(" \t", pos);
+		if (pos == std::string::npos)
+			return {};
+		pos = commandline.find_first_of(" \t", pos);
+		if (pos == std::string::npos)
+			return {};
+	}
+	pos = commandline.find_first_not_of(" \t", pos);
+	if (pos == std::string::npos)
+		return {};
+	std::string value = commandline.substr(pos);
+	while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
+		value.pop_back();
+	if (value.size() >= 2 && value.front() == '"' && value.back() == '"')
+		value = value.substr(1, value.size() - 2);
+	return value;
+}
+
+// Finds a class by its name alone in the packages that are in memory, as FindObject<UClass>(ANY_PACKAGE, name) does.
+// The GET and SET console commands of UE1 use this: "set DeusExPlayer bCheatsEnabled True".
+UClass* Engine::FindLoadedClass(const NameString& name)
+{
+	static std::map<NameString, UClass*> cache;
+	auto it = cache.find(name);
+	if (it != cache.end())
+		return it->second;
+
+	for (GCObject* gcobj : GC::GetObjects())
+	{
+		UObject* obj = dynamic_cast<UObject*>(gcobj);
+		UClass* cls = obj ? obj->AsClass() : nullptr;
+		if (cls && cls->Name == name)
+		{
+			cache[name] = cls;
+			return cls;
+		}
+	}
+	return nullptr;
+}
+
 std::string Engine::ConsoleCommand(UObject* context, const std::string& commandline, BitfieldBool& found)
 {
 	found = false;
@@ -1356,6 +1402,8 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 
 		UClass* cls = packages->FindClass(className);
 		if (!cls)
+			cls = FindLoadedClass(className);
+		if (!cls)
 		{
 			LogMessage("Could not find class '" + className.ToString() + "': " + commandline);
 			return {};
@@ -1395,20 +1443,7 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 		// SET Input <key> [command]: bind a key. Deus Ex uses its own input class: SET InputExt <key> [command].
 		// The command is all text after the key name, because it can have arguments ("ActivateAugmentation 3").
 		// No command removes the binding. The key menu of Deus Ex and the multiplayer key setup use this.
-		size_t pos = 0;
-		for (int token = 0; token < 3; token++)
-		{
-			pos = commandline.find_first_not_of(" \t", pos);
-			pos = commandline.find_first_of(" \t", pos);
-			if (pos == std::string::npos)
-				pos = commandline.size();
-		}
-		pos = commandline.find_first_not_of(" \t", pos);
-		std::string value = pos != std::string::npos ? commandline.substr(pos) : std::string();
-		while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
-			value.pop_back();
-		if (value.size() >= 2 && value.front() == '"' && value.back() == '"')
-			value = value.substr(1, value.size() - 2);
+		std::string value = RestOfCommand(commandline, 3);
 
 		// Use the spelling of the key name table, which is the key of the bindings map
 		NameString keyName = args[2];
@@ -1424,13 +1459,16 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 		LogMessage("Unknown key name: " + commandline);
 		return {};
 	}
-	else if (command == "set" && args.size() == 4)
+	else if (command == "set" && args.size() >= 4)
 	{
+		// SET <class> <property> <value>. The value is all text after the property name.
 		NameString className = ParseClassName(args[1]);
 		NameString propertyName = args[2];
-		std::string value = args[3];
+		std::string value = RestOfCommand(commandline, 3);
 
 		UClass* cls = packages->FindClass(className);
+		if (!cls)
+			cls = FindLoadedClass(className);
 		if (!cls)
 		{
 			LogMessage("Could not find class '" + className.ToString() + "': " + commandline);
@@ -1455,6 +1493,7 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 		}
 		else
 		{
+			// UObject::GlobalSetProperty of UE1: the value goes to the defaults of the class and to each object of the class
 			try
 			{
 				cls->SetPropertyFromString(propertyName, value);
@@ -1462,6 +1501,21 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 			catch (const std::exception&)
 			{
 				LogMessage("Could not set property '" + propertyName.ToString() + "': " + commandline);
+				return {};
+			}
+
+			for (GCObject* gcobj : GC::GetObjects())
+			{
+				UObject* obj = dynamic_cast<UObject*>(gcobj);
+				if (!obj || obj == cls || !obj->Class || obj->AsClass() || !obj->IsA(cls->Name))
+					continue;
+				try
+				{
+					obj->SetPropertyFromString(propertyName, value);
+				}
+				catch (const std::exception&)
+				{
+				}
 			}
 			return {};
 		}
