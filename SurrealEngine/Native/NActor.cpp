@@ -904,69 +904,21 @@ void NActor::InStasis(UObject* Self, BitfieldBool& ReturnValue)
 	ReturnValue = SelfActor->InStasis();
 }
 
-void NActor::ParabolicTrace(UObject* Self, vec3& finalLocation, std::optional<vec3> startVelocity, std::optional<vec3> startLocation, std::optional<bool> bCheckActors, std::optional<vec3> Cylinder, std::optional<float> maxTime, std::optional<float> elasticity, std::optional<bool> bBounce, std::optional<float> landingSpeed, std::optional<float> granularity, float& ReturnValue)  
-{  
-	UActor* SelfActor = UObject::Cast<UActor>(Self);  
-	vec3 pos = *startLocation;  
-	vec3 velocity = *startVelocity;  
-	bool bHit = false;  
-	float timeElapsed = 0.0f;  
-	vec3 hitLocation;  
-	vec3 hitNormal;  
-	vec3 previousNormal = vec3(0, 0, 0);  
-	  
-	while(!bHit && timeElapsed < *maxTime)  
-	{  
-		pos += velocity * *granularity;  
-		velocity.z -= SelfActor->Region().Zone->ZoneGravity().z * *granularity;  
-		  
-		if (SelfActor->Trace(hitLocation, hitNormal, pos, *startLocation, *bCheckActors, Cylinder ? *Cylinder : vec3(0, 0, 0)))  
-		{  
-			if (*bBounce && *elasticity > 0.0f)  
-			{  
-				if (dot(previousNormal, hitNormal) > 0.0f)  
-				{  
-					float f = dot(velocity, hitNormal);  
-					velocity = (velocity - f * hitNormal) * (1.0f - *elasticity);  
-					  
-					if (dot(velocity, hitNormal) <= 0.0f)  
-					{  
-						velocity = vec3(0, 0, 0);  
-						bHit = true;  
-					}  
-				}  
-				else  
-				{  
-					vec3 crossProduct = cross(previousNormal, hitNormal);  
-					vec3 edgeNormal = normalize(crossProduct);  
-					float scale = (1.0f - *elasticity) * dot(edgeNormal, velocity);  
-					velocity = edgeNormal * scale;  
-					  
-					if (dot(velocity, previousNormal) < 0.0f)  
-					{  
-						velocity = velocity * -1.0f;  
-					}  
-				}  
-				  
-				pos = hitLocation;   
-				previousNormal = hitNormal; 
-			}  
-			else {  
-				bHit = true;  
-				pos = hitLocation;  
-			}  
-		}  
-  
-		if (length(velocity) < *landingSpeed)  
-		{  
-			bHit = true;  
-		}  
-  
-		timeElapsed += *granularity;  
-	}  
-  
-	finalLocation = pos;  
-	ReturnValue = timeElapsed;  
+void NActor::ParabolicTrace(UObject* Self, vec3& finalLocation, std::optional<vec3> startVelocity, std::optional<vec3> startLocation, std::optional<bool> bCheckActors, std::optional<vec3> Cylinder, std::optional<float> maxTime, std::optional<float> elasticity, std::optional<bool> bBounce, std::optional<float> landingSpeed, std::optional<float> granularity, float& ReturnValue)
+{
+	// A parameter that the script leaves out has its value from the actor or the default of the original engine
+	UActor* SelfActor = UObject::Cast<UActor>(Self);
+	ReturnValue = SelfActor->ParabolicTrace(
+		finalLocation,
+		startLocation ? *startLocation : SelfActor->Location(),
+		startVelocity ? *startVelocity : SelfActor->Velocity(),
+		maxTime ? *maxTime : 5.0f,
+		elasticity ? *elasticity : 0.9f,
+		bBounce ? *bBounce : (bool)SelfActor->bBounce(),
+		landingSpeed ? *landingSpeed : 60.0f,
+		Cylinder ? *Cylinder : vec3(SelfActor->CollisionRadius(), SelfActor->CollisionRadius(), SelfActor->CollisionHeight()),
+		bCheckActors ? *bCheckActors : (bool)SelfActor->bCollideActors(),
+		granularity ? *granularity : 0.025f);
 }
 
 void NActor::RandomBiasedRotation(

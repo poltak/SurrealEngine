@@ -328,6 +328,162 @@ BoundingBox UActor::GetWorldCollisionBox(bool bVisual)
 	return {};
 }
 
+// The move after a second wall, as AActor::TwoWallAdjust of the original engine
+static void TwoWallAdjust(const vec3& desiredDir, vec3& delta, const vec3& hitNormal, const vec3& oldHitNormal, float hitTime)
+{
+	if (dot(hitNormal, oldHitNormal) > 0.0f)
+	{
+		// Slide along the new wall
+		delta = (delta - hitNormal * dot(delta, hitNormal)) * (1.0f - hitTime);
+		if (dot(desiredDir, delta) <= 0.0f)
+			delta = vec3(0.0f);
+	}
+	else
+	{
+		// A corner of 90 degrees or less. Move along the line where the two walls meet.
+		vec3 newDir = cross(hitNormal, oldHitNormal);
+		float len = length(newDir);
+		newDir = (len > 0.00001f) ? newDir / len : vec3(0.0f);
+		delta = newDir * ((1.0f - hitTime) * dot(newDir, delta));
+		if (dot(desiredDir, delta) < 0.0f)
+			delta = -delta;
+	}
+}
+
+// Deus Ex: where does an object land that flies from a place with a start velocity, falls with the gravity of the
+// zone and bounces from walls? The AI uses this for grenades. This does the same as AActor::ParabolicTrace of the
+// original Engine.dll: it moves a cylinder in time steps of "granularity" seconds. The result is the flight time.
+// The result is 0, with the start place as final place, if the object does not come to rest in maxTime, leaves the
+// level or gets into water.
+float UActor::ParabolicTrace(vec3& finalLocation, const vec3& startLocation, const vec3& startVelocity, float maxTime, float elasticity, bool bounce, float landingSpeed, const vec3& cylinder, bool checkActors, float granularity)
+{
+	granularity = clamp(granularity, 0.005f, 1.0f);
+
+	ULevel* level = XLevel();
+	UZoneInfo* levelZone = Level();
+	vec3 location = startLocation;
+	vec3 velocity = startVelocity;
+	PointRegion region = level->Model->FindRegion(location, levelZone);
+
+	float hitTime = 1.0f;
+	vec3 hitNormal(0.0f);
+
+	// Move the place by delta until the level or a blocking actor stops it. The trace goes 2 units further than
+	// the move, and the place stops 2 units before the hit, as the actor move of the original does it.
+	auto move = [&](const vec3& delta)
+	{
+		if (std::abs(delta.x) < 0.0001f && std::abs(delta.y) < 0.0001f && std::abs(delta.z) < 0.0001f)
+			return;
+
+		hitTime = 1.0f;
+		hitNormal = vec3(0.0f);
+
+		const float extra = 2.0f;
+		float len = length(delta);
+		vec3 dir = delta / len;
+		for (const CollisionHit& hit : level->Collision.Trace(location, location + delta + dir * extra, cylinder.z, cylinder.x, checkActors, true, false))
+		{
+			// The level blocks, and each actor that blocks actors and does not stand on this actor
+			if (hit.Actor && (IsBasedOn(hit.Actor) || !hit.Actor->bBlockActors()))
+				continue;
+			hitTime = hit.Fraction;
+			hitNormal = hit.Normal;
+			break;
+		}
+
+		vec3 moved = delta;
+		if (hitTime < 1.0f)
+		{
+			float hitDistance = (extra + len) * hitTime;
+			if (hitDistance > extra)
+			{
+				moved = (delta + dir * extra) * hitTime - dir * extra;
+				hitTime = (hitDistance - extra) / len;
+			}
+			else
+			{
+				moved = vec3(0.0f);
+				hitTime = 0.0f;
+			}
+		}
+
+		location += moved;
+		region = level->Model->FindRegion(location, levelZone);
+	};
+	auto zone = [&]() { return region.Zone ? region.Zone : levelZone; };
+	auto landed = [&](const vec3& speed) { return hitNormal.z > 0.7f && (!bounce || dot(speed, speed) < landingSpeed * landingSpeed); };
+	auto reflect = [&]() { velocity = (velocity - hitNormal * (2.0f * dot(velocity, hitNormal))) * elasticity; };
+
+	bool done = false;
+	int steps = 0;
+	while (!done)
+	{
+		bool hitInStep = false;
+
+		velocity += zone()->ZoneGravity() * granularity;
+		vec3 delta = (velocity + zone()->ZoneVelocity()) * granularity;
+		move(delta);
+
+		if (zone()->bWaterZone())
+		{
+			steps = 0;
+			location = startLocation;
+			done = true;
+		}
+		else if (hitTime < 1.0f)
+		{
+			hitInStep = true;
+			if (landed(velocity))
+			{
+				done = true;
+			}
+			else
+			{
+				// Bounce, and use the rest of the time step to slide along the wall
+				reflect();
+				vec3 oldHitNormal = hitNormal;
+				vec3 slide = (delta - hitNormal * dot(delta, hitNormal)) * (1.0f - hitTime);
+				if (dot(slide, delta) >= 0.0f)
+				{
+					move(slide);
+					if (hitTime < 1.0f)
+					{
+						reflect();
+						if (landed(velocity))
+							done = true;
+
+						float len = length(delta);
+						vec3 desiredDir = (len > 0.00001f) ? delta / len : vec3(0.0f);
+						TwoWallAdjust(desiredDir, slide, hitNormal, oldHitNormal, hitTime);
+						move(slide);
+						if (!done && hitTime < 1.0f && landed(slide))
+							done = true;
+					}
+				}
+			}
+		}
+
+		if (!bounce || !hitInStep)
+		{
+			float terminalVelocity = zone()->ZoneTerminalVelocity();
+			if (dot(velocity, velocity) > terminalVelocity * terminalVelocity)
+				velocity = normalize(velocity) * terminalVelocity;
+		}
+
+		steps++;
+		if (region.ZoneNumber == 0 || steps * granularity > maxTime || dot(delta, delta) > 2500000.0f)
+		{
+			// The object left the level, is in the air for too long, or is too fast
+			steps = 0;
+			location = startLocation;
+			done = true;
+		}
+	}
+
+	finalLocation = location;
+	return steps * granularity;
+}
+
 UObject* UActor::Trace(vec3& hitLocation, vec3& hitNormal, const vec3& traceEnd, const vec3& traceStart, bool bTraceActors, const vec3& extent)
 {
 	TraceFlags flags;

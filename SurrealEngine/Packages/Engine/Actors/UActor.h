@@ -450,6 +450,9 @@ public:
 	bool MoveSmooth(const vec3& delta);
 
 	bool IsBasedOn(UActor* other);
+
+	// Deus Ex: the flight of an object that falls and bounces. Returns the flight time, or 0 if the object does not land.
+	float ParabolicTrace(vec3& finalLocation, const vec3& startLocation, const vec3& startVelocity, float maxTime, float elasticity, bool bounce, float landingSpeed, const vec3& cylinder, bool checkActors, float granularity);
 	bool IsOwnedBy(UActor* owner);
 	bool IsOverlapping(UActor* other);
 	Rotator RandomBiasedRotation(int centralYaw, float yawDistribution, int centralPitch, float pitchDistribution);
