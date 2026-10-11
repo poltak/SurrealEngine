@@ -44,6 +44,8 @@ class UActor;
 //                                   the start of the text of a text window, the row count of a list and the
 //                                   state of a toggle or checkbox, the thumb position of a scale, and the
 //                                   child position of a clip window
+//   surfaces GROUP [COUNT]          log the level surfaces with a texture of that group (middle point, normal,
+//                                   radius). The group Ladder gives the ladders of a map.
 //   cursor                          log the mouse cursor that the interface shows: texture, hot spot, color,
 //                                   shadow texture and the class of the window under the mouse
 //   log TEXT | quit

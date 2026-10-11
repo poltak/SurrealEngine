@@ -397,7 +397,8 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		UPlayerPawn* player = engine->viewport ? UObject::TryCast<UPlayerPawn>(engine->viewport->Actor()) : nullptr;
 		if (player)
 		{
-			player->SetLocation(vec3(x, y, z));
+			if (!player->SetLocation(vec3(x, y, z)))
+				LogMessage("Harness: teleport: no room for the player at that place");
 			if (parts >> yaw)
 			{
 				Rotator r(0, yaw, 0);
@@ -781,6 +782,36 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			else
 				LogMessage("Harness: showtex: no texture " + fullName);
 		}
+	}
+	else if (e.Command == "surfaces")
+	{
+		// surfaces GROUP [COUNT]: log the level surfaces that have a texture of that group, with their middle point,
+		// their normal and their radius (default 20 surfaces). The group "Ladder" gives the ladders of a map.
+		std::istringstream parts(e.Args);
+		std::string group;
+		int maxCount = 20;
+		parts >> group >> maxCount;
+		ULevel* level = engine->Level;
+		int count = 0;
+		if (level && level->Model && !group.empty())
+		{
+			NameString groupName(group);
+			for (const BspSurface& surf : level->Model->Surfaces)
+			{
+				if (!surf.Material || !surf.Material->Outer() || surf.Material->Outer()->Name != groupName)
+					continue;
+				if (count++ >= maxCount)
+					continue;
+				vec3 normal(0.0f);
+				if (surf.vNormal >= 0 && (size_t)surf.vNormal < level->Model->Vectors.size())
+					normal = level->Model->Vectors[surf.vNormal];
+				char buf[300];
+				snprintf(buf, sizeof(buf), "Harness: surface %s center=(%.0f %.0f %.0f) normal=(%.2f %.2f %.2f) radius=%.0f",
+					surf.Material->Name.ToString().c_str(), surf.Center.x, surf.Center.y, surf.Center.z, normal.x, normal.y, normal.z, surf.Radius);
+				LogMessage(buf);
+			}
+		}
+		LogMessage("Harness: surfaces " + group + " count=" + std::to_string(count));
 	}
 	else if (e.Command == "tracetex")
 	{
