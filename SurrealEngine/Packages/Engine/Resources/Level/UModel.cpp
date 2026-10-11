@@ -438,6 +438,30 @@ void UModel::Save(PackageStreamWriter* stream)
 	stream->WriteInt32(Linked);
 }
 
+// An assignment of an empty array keeps the memory of the array. A swap with an empty array gives it back.
+template<typename T>
+static void ReleaseArray(Array<T>& array)
+{
+	Array<T> empty;
+	array.swap(empty);
+}
+
+void UModel::FreeMemory()
+{
+	// The nodes have lists of the actors and decals in them. They go away with the nodes.
+	ReleaseArray(Vectors);
+	ReleaseArray(Points);
+	ReleaseArray(Nodes);
+	ReleaseArray(Surfaces);
+	ReleaseArray(Vertices);
+	ReleaseArray(LightMap);
+	ReleaseArray(LightBits);
+	ReleaseArray(Bounds);
+	ReleaseArray(LeafHulls);
+	ReleaseArray(Leaves);
+	ReleaseArray(Lights);
+}
+
 PointRegion UModel::FindRegion(const vec3& point, UZoneInfo* levelZoneInfo)
 {
 	if (Nodes.empty()) // This happens in Harry Potter! Probably a load problem

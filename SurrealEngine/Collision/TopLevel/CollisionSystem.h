@@ -39,6 +39,9 @@ public:
 	Array<UActor*> EncroachingActors(UActor* actor);
 
 	void SetLevel(ULevel* level);
+
+	// Removes all actors from the collision grid. The engine calls this for a level that it left.
+	void FreeMemory() { CollisionActors.clear(); }
 	void AddToCollision(UActor* actor);
 	void RemoveFromCollision(UActor* actor);
 

@@ -28,6 +28,7 @@
 #include "Packages/Engine/Actors/Info/UPlayerReplicationInfo.h"
 #include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Packages/Engine/Resources/Level/UModel.h"
+#include "Packages/Engine/Resources/Level/UPolys.h"
 #include "Packages/Engine/Resources/UFont.h"
 #include "Packages/Engine/Resources/Mesh/USkeletalMesh.h"
 #include "Packages/Engine/Resources/Textures/UTexture.h"
@@ -662,10 +663,68 @@ void Engine::LoadEntryMap()
 	viewport->Actor() = nullptr;
 }
 
+// The engine has no garbage collector that works, so the objects of a level stay in memory when the game goes to a
+// different level or loads a save game. A play session with many loads then uses more and more memory.
+// This frees the large native data of the level that the engine leaves: the lightmaps, the collision grid, and the
+// geometry of the level and of its brushes. The objects themselves stay, because other objects can still point to them.
+// The code that reads this data accepts a model with no nodes.
+void Engine::FreeLevelData(Package* package, ULevel* level)
+{
+	if (level)
+	{
+		level->Light.FreeMemory();
+		level->Collision.FreeMemory();
+
+		// Actors keep a pointer to the level node that has them. The nodes go away, so remove the pointers.
+		for (UActor* actor : level->Actors)
+		{
+			if (actor)
+			{
+				actor->BspInfo.Node = nullptr;
+				actor->BspInfo.Prev = nullptr;
+				actor->BspInfo.Next = nullptr;
+			}
+		}
+	}
+
+	for (GCObject* gcobj : GC::GetObjects())
+	{
+		UObject* obj = dynamic_cast<UObject*>(gcobj);
+		if (!obj || obj->package != package)
+			continue;
+
+		if (UModel* model = dynamic_cast<UModel*>(obj))
+		{
+			// An actor that is not in the actor list of the level can still be in the list of a node
+			for (BspNode& node : model->Nodes)
+			{
+				for (UActor* actor = node.ActorList; actor; )
+				{
+					UActor* next = actor->BspInfo.Next;
+					actor->BspInfo.Node = nullptr;
+					actor->BspInfo.Prev = nullptr;
+					actor->BspInfo.Next = nullptr;
+					actor = next;
+				}
+				node.ActorList = nullptr;
+			}
+			model->FreeMemory();
+		}
+		else if (UPolys* polys = dynamic_cast<UPolys*>(obj))
+		{
+			Array<Poly> empty;
+			polys->Polys.swap(empty);
+		}
+	}
+}
+
 void Engine::UnloadMap()
 {
 	if (!LevelPackage)
 		return;
+
+	if (!Harness::Get().KeepLevelData)
+		FreeLevelData(LevelPackage, Level);
 
 	LevelInfo = nullptr;
 	if (packages->IsDeusEx())

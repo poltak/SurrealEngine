@@ -79,6 +79,7 @@ public:
 	void LoadFromSaveFile(const UnrealURL& url);
 	void SaveGameToSlot(int32_t slotNum, const std::string& saveDescription) const;
 	void UnloadMap();
+	void FreeLevelData(Package* package, ULevel* level);
 	void LoginPlayer();
 	void PossessSavedPlayer();
 

@@ -200,6 +200,9 @@ public:
 
 	PointRegion FindRegion(const vec3& point, UZoneInfo* levelZoneInfo);
 
+	// Frees the geometry. The engine calls this for the models of a level that it left.
+	void FreeMemory();
+
 	Array<vec3> Vectors;
 	Array<vec3> Points;
 	Array<BspNode> Nodes;

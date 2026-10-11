@@ -66,8 +66,9 @@ void UActor::UpdateBspInfo()
 		vec3 location = bbox.center();
 		vec3 extents = bbox.extents();
 
+		// A level that the engine left has no nodes (Engine::FreeLevelData)
 		ULevel* level = XLevel();
-		BspNode* node = level ? &level->Model->Nodes[0] : nullptr;
+		BspNode* node = (level && level->Model && !level->Model->Nodes.empty()) ? &level->Model->Nodes[0] : nullptr;
 		while (node)
 		{
 			int side = NodeAABBOverlap(location, extents, node);
