@@ -752,6 +752,7 @@ public:
 	BitfieldBool bFixedRotationDir() { return BoolValue(PropOffsets_Actor.bFixedRotationDir); }
 	BitfieldBool bForcePhysicsUpdate() { return BoolValue(PropOffsets_Actor.bForcePhysicsUpdate); }
 	BitfieldBool bForceStasis() { return BoolValue(PropOffsets_Actor.bForceStasis); }
+	BitfieldBool bTransient() { return BoolValue(PropOffsets_Actor.bTransient); }
 	BitfieldBool bGameRelevant() { return BoolValue(PropOffsets_Actor.bGameRelevant); }
 	BitfieldBool bHidden() { return BoolValue(PropOffsets_Actor.bHidden); }
 	BitfieldBool bHiddenEd() { return BoolValue(PropOffsets_Actor.bHiddenEd); }

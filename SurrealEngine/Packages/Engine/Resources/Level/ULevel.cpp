@@ -6,6 +6,7 @@
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Engine/Actors/NavigationPoint/UNavigationPoint.h"
 #include "Packages/Engine/Resources/Level/UModel.h"
+#include "Packages/Engine/UViewport.h"
 #include "Engine.h"
 #include "VM/ScriptCall.h"
 
@@ -89,6 +90,83 @@ void ULevel::TickActor(float elapsed, UActor* actor)
 	}
 }
 
+// The tick of one actor as ULevel::Tick and the start of AActor::Tick in the Engine.dll of Deus Ex do it.
+// Returns false when the actor waits, because its owner did not tick yet in this frame.
+bool ULevel::TickActorDeusEx(float elapsed, UActor* actor)
+{
+	// The original has the static actors at the start of the list and does not go to them
+	if (actor->bDeleteMe() || actor->bStatic())
+		return true;
+
+	// An actor in stasis does not tick: the player did not see it for 5 seconds, and it is far away or its zone was
+	// not drawn. An actor that is transient goes away then.
+	if (actor->InStasis())
+	{
+		if (actor->bTransient() && actor->Role() >= ROLE_SimulatedProxy)
+			actor->Destroy();
+		return true;
+	}
+
+	if (actor->Owner() && actor->Owner()->bTicked() != ticked)
+	{
+		waitingActors.push_back(actor);
+		return false;
+	}
+
+	actor->bTicked() = ticked;
+	actor->Tick(elapsed);
+
+	if (!actor->bDeleteMe() && actor->Role() >= ROLE_SimulatedProxy && actor->LifeSpan() != 0.0f)
+	{
+		actor->LifeSpan() = std::max(actor->LifeSpan() - elapsed, 0.0f);
+		if (actor->LifeSpan() == 0.0f)
+		{
+			CallEvent(actor, EventName::Expired);
+			actor->Destroy();
+		}
+	}
+	return true;
+}
+
+void ULevel::TickActorsDeusEx(float elapsed)
+{
+	// The distance to the player is from the places at the start of the frame. The stasis check needs it for
+	// actors that do not tick.
+	UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
+	if (player && player->XLevel() == this && engine->LevelInfo->NetMode() == 0)
+	{
+		vec3 playerLocation = player->Location();
+		for (UActor* actor : Actors)
+		{
+			if (actor && !actor->bStatic())
+				actor->DistanceFromPlayer() = length(actor->Location() - playerLocation);
+		}
+	}
+
+	// The list grows when an actor makes a new actor. The new actor ticks in this frame also.
+	waitingActors.clear();
+	int updated = 0;
+	for (size_t i = 0; i < Actors.size(); i++)
+	{
+		if (Actors[i] && TickActorDeusEx(elapsed, Actors[i]))
+			updated++;
+	}
+
+	// The actors that waited for their owner. An actor whose owner does not tick in this frame stays out.
+	while (!waitingActors.empty() && updated > 0)
+	{
+		Array<UActor*> waiting;
+		waiting.swap(waitingActors);
+		updated = 0;
+		for (UActor* actor : waiting)
+		{
+			if (actor->bTicked() != ticked && TickActorDeusEx(elapsed, actor))
+				updated++;
+		}
+	}
+	waitingActors.clear();
+}
+
 bool ULevel::HasActorName(const NameString& name) const
 {
 	for (UActor* actor : Actors)
@@ -115,9 +193,13 @@ void ULevel::Tick(float elapsed, bool gamePaused)
 	{
 		for (size_t i = 0; i < Actors.size(); i++)
 		{
-			if (UObject::TryCast<UPlayerPawn>(Actors[i]) || Actors[i]->bAlwaysTick())
+			if (Actors[i] && (UObject::TryCast<UPlayerPawn>(Actors[i]) || Actors[i]->bAlwaysTick()))
 				TickActor(elapsed, Actors[i]);
 		}
+	}
+	else if (engine->LaunchInfo.IsDeusEx())
+	{
+		TickActorsDeusEx(elapsed);
 	}
 	else
 	{

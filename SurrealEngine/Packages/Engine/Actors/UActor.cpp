@@ -70,7 +70,10 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	actor->XLevel() = XLevel();
 	actor->Level() = Level();
 	actor->Tag() = (SpawnTag && !SpawnTag->IsNone()) ? *SpawnTag : SpawnClass->Name;
-	actor->bTicked() = bTicked(); // To do: should it tick in the same world tick it was spawned in or wait until the next one?
+	if (engine->LaunchInfo.IsDeusEx())
+		actor->bTicked() = !XLevel()->Ticked(); // As ULevel::SpawnActor in Engine.dll: a new actor did not tick yet, so it ticks in the frame of its spawn
+	else
+		actor->bTicked() = bTicked(); // To do: should it tick in the same world tick it was spawned in or wait until the next one?
 	actor->Instigator() = Instigator();
 	actor->Brush() = nullptr;
 	actor->Location() = location;
@@ -200,11 +203,6 @@ bool UActor::Destroy()
 
 void UActor::Tick(float elapsed)
 {
-	if (engine->LaunchInfo.IsDeusEx())
-	{
-		DistanceFromPlayer() = length(engine->viewport->Actor()->Location() - Location());
-	}
-
 	TickAnimation(elapsed);
 	if (engine->LaunchInfo.IsDeusEx())
 		TickBlendAnimation(elapsed);

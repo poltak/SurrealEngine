@@ -46,6 +46,9 @@ public:
 
 	bool HasActorName(const NameString& name) const;
 
+	// The value that bTicked of an actor has after its tick in the current frame
+	bool Ticked() const { return ticked; }
+
 	Array<LevelReachSpec> ReachSpecs;
 	UModel* Model = nullptr;
 
@@ -59,6 +62,9 @@ public:
 
 private:
 	void TickActor(float elapsed, UActor* actor);
+	bool TickActorDeusEx(float elapsed, UActor* actor);
+	void TickActorsDeusEx(float elapsed);
 
 	bool ticked = false;
+	Array<UActor*> waitingActors;
 };

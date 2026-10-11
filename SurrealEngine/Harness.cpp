@@ -563,6 +563,8 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			char buf[160];
 			snprintf(buf, sizeof(buf), " loc=(%.0f %.0f %.0f) dist=%.0f lastRendered=%.1f", actor->Location().x, actor->Location().y, actor->Location().z, dist, engine->LevelInfo->TimeSeconds() - actor->LastRenderTime());
 			text += buf;
+			if (engine->LaunchInfo.IsDeusEx() && actor->InStasis())
+				text += " inStasis";
 			if (UPawn* pawn = UObject::TryCast<UPawn>(actor))
 			{
 				text += " health=" + std::to_string(pawn->Health());

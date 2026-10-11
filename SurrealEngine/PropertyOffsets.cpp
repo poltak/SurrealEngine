@@ -437,6 +437,7 @@ static void InitPropertyOffsets_Actor(PackageManager* packages)
 	PropOffsets_Actor.bFixedRotationDir = cls->GetPropertyDataOffset("bFixedRotationDir");
 	PropOffsets_Actor.bForcePhysicsUpdate = cls->GetPropertyDataOffset("bForcePhysicsUpdate");
 	PropOffsets_Actor.bForceStasis = cls->GetPropertyDataOffset("bForceStasis");
+	PropOffsets_Actor.bTransient = cls->GetPropertyDataOffset("bTransient");
 	PropOffsets_Actor.bGameRelevant = cls->GetPropertyDataOffset("bGameRelevant");
 	PropOffsets_Actor.bHidden = cls->GetPropertyDataOffset("bHidden");
 	PropOffsets_Actor.bHiddenEd = cls->GetPropertyDataOffset("bHiddenEd");

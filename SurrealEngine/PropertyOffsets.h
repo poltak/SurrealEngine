@@ -390,6 +390,7 @@ struct PropertyOffsets_Actor
 	PropertyDataOffset bFixedRotationDir;
 	PropertyDataOffset bForcePhysicsUpdate;
 	PropertyDataOffset bForceStasis;
+	PropertyDataOffset bTransient;
 	PropertyDataOffset bGameRelevant;
 	PropertyDataOffset bHidden;
 	PropertyDataOffset bHiddenEd;
