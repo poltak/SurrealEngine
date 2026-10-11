@@ -162,6 +162,10 @@ public:
 	ExpressionValueType GetType() const { return Type; }
 	bool IsVariable() const { return VariableProperty; }
 
+	// For a variable that is a fixed-size array: copy the elements after the first one from another array variable.
+	// Store copies only the first element.
+	void StoreArrayElements(const ExpressionValue& rvalue);
+
 	ExpressionValue ItemAt(int index)
 	{
 		index = clamp(index, 0, (int)VariableProperty->ArrayDimension - 1);
@@ -399,6 +403,19 @@ inline ExpressionValue ExpressionValue::Variable(void* data, UProperty* prop)
 		return ExpressionValue(static_cast<uint8_t*>(data) + prop->DataOffset.DataOffset, prop);
 	else
 		return ExpressionValue(ExpressionValueType::Nothing);
+}
+
+inline void ExpressionValue::StoreArrayElements(const ExpressionValue& rvalue)
+{
+	// The two values must point at the first element of an array of the same type. A bool array has its values in bits.
+	if (!VariableProperty || !rvalue.VariableProperty || !Ptr || !rvalue.Ptr || Type != rvalue.Type || Type == ExpressionValueType::ValueBool)
+		return;
+	if (VariableProperty->ElementPitch() != rvalue.VariableProperty->ElementPitch())
+		return;
+
+	int count = std::min(VariableProperty->ArrayDimension, rvalue.VariableProperty->ArrayDimension);
+	for (int i = 1; i < count; i++)
+		VariableProperty->CopyElement(VariableProperty->GetElement(Ptr, i), rvalue.VariableProperty->GetElement(rvalue.Ptr, i));
 }
 
 inline void ExpressionValue::Store(const ExpressionValue& rvalue)

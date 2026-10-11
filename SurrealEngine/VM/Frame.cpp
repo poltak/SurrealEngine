@@ -280,6 +280,10 @@ ExpressionValue Frame::CallScript(UFunction* func, UObject* instance, CallArgLis
 			{
 				ExpressionValue lvalue = ExpressionValue::Variable(frame.Variables->Data, prop);
 				lvalue.Store(args[argindex]);
+
+				// A parameter can be a fixed-size array, for example "out Texture oldSkins[9]". It gets all elements.
+				if (prop->ArrayDimension > 1)
+					lvalue.StoreArrayElements(args[argindex]);
 			}
 
 			argindex++;
@@ -300,6 +304,8 @@ ExpressionValue Frame::CallScript(UFunction* func, UObject* instance, CallArgLis
 		{
 			ExpressionValue lvalue = ExpressionValue::Variable(frame.Variables->Data, prop);
 			args[argindex].Store(lvalue);
+			if (prop->ArrayDimension > 1)
+				args[argindex].StoreArrayElements(lvalue);
 		}
 
 		if (AllFlags(prop->PropFlags, PropertyFlags::ReturnParm) && result.GetType() == ExpressionValueType::Nothing)
