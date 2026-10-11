@@ -207,10 +207,7 @@ void UActor::Tick(float elapsed)
 	if (engine->LaunchInfo.IsDeusEx())
 		TickBlendAnimation(elapsed);
 
-	if (Role() >= ROLE_SimulatedProxy && IsEventEnabled(EventName::Tick))
-	{
-		CallEvent(this, EventName::Tick, { ExpressionValue::FloatValue(elapsed) });
-	}
+	TickScriptEvents(elapsed);
 
 	if (StateFrame)
 	{
@@ -232,6 +229,28 @@ void UActor::Tick(float elapsed)
 		}
 	}
 
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// As AActor::Tick in the Engine.dll of Deus Ex: the timer comes before the physics, and one tick gives one
+		// timer event at most
+		if (TimerRate() > 0.0f)
+		{
+			TimerCounter() += elapsed;
+			if (TimerCounter() >= TimerRate())
+			{
+				int count = (int)(TimerCounter() / TimerRate());
+				TimerCounter() -= TimerRate() * count;
+				if (count != 0 && !bTimerLoop())
+					TimerRate() = 0.0f;
+				CallEvent(this, EventName::Timer);
+			}
+		}
+
+		if (!bDeleteMe())
+			TickPhysics(elapsed);
+		return;
+	}
+
 	TickPhysics(elapsed);
 
 	if (TimerRate() > 0.0f) // Role() == ROLE_Authority && RemoteRole() == ROLE_AutonomousProxy
@@ -244,6 +263,14 @@ void UActor::Tick(float elapsed)
 				TimerRate() = 0.0f;
 			CallEvent(this, EventName::Timer);
 		}
+	}
+}
+
+void UActor::TickScriptEvents(float elapsed)
+{
+	if (Role() >= ROLE_SimulatedProxy && IsEventEnabled(EventName::Tick))
+	{
+		CallEvent(this, EventName::Tick, { ExpressionValue::FloatValue(elapsed) });
 	}
 }
 

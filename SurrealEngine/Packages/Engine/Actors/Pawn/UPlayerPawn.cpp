@@ -26,11 +26,26 @@ void UPlayerPawn::PausedInput(float elapsed)
 	}
 }
 
+void UPlayerPawn::TickScriptEvents(float elapsed)
+{
+	// As AActor::Tick in the Engine.dll of Deus Ex: a player with a viewport gets its input and the PlayerTick event
+	// where another actor gets the Tick event. The state code and the physics of the same frame come after it, so
+	// a key moves the player in the frame in which the game reads it.
+	if (engine->LaunchInfo.IsDeusEx() && Role() >= ROLE_SimulatedProxy && Player() && !UObject::TryCast<UCamera>(this))
+	{
+		CallEvent(this, EventName::PlayerInput, { ExpressionValue::FloatValue(elapsed) });
+		CallEvent(this, EventName::PlayerTick, { ExpressionValue::FloatValue(elapsed) });
+		return;
+	}
+
+	UPawn::TickScriptEvents(elapsed);
+}
+
 void UPlayerPawn::Tick(float elapsed)
 {
 	UPawn::Tick(elapsed);
 
-	if (Role() >= ROLE_SimulatedProxy)
+	if (!engine->LaunchInfo.IsDeusEx() && Role() >= ROLE_SimulatedProxy)
 	{
 		if (Player() && !UObject::TryCast<UCamera>(this))
 		{

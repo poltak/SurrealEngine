@@ -386,6 +386,7 @@ public:
 	PointRegion FindRegion(const vec3& offset = vec3(0.0f));
 
 	virtual void Tick(float elapsed);
+	virtual void TickScriptEvents(float elapsed);
 
 	void TickAnimation(float elapsed);
 	void TickBlendAnimation(float elapsed);

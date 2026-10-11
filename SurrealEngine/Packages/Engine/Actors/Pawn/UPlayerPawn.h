@@ -16,6 +16,7 @@ public:
 	void PausedInput(float elapsed);
 
 	void Tick(float elapsed) override;
+	void TickScriptEvents(float elapsed) override;
 	void TickRotating(float elapsed) override;
 
 	// Unreal 227 addition
