@@ -745,8 +745,9 @@ Sizef UGC::DrawText(UFont* font, float orgX, float orgY, float destWidth, const 
 	Color color = colormoo;
 	color.A = 255; // grr
 
-	if (!bWordWrap())
-		destWidth = 100000.0f;
+	// With word wrap off, a line has no width limit. The width of the box still places a centered or a right
+	// aligned line: the ammo numbers of the HUD are centered text with no word wrap.
+	float wrapWidth = bWordWrap() ? destWidth : 100000.0f;
 
 
 	// Remove the | and & escapes for now
@@ -808,7 +809,7 @@ Sizef UGC::DrawText(UFont* font, float orgX, float orgY, float destWidth, const 
 		else
 		{
 			vec2 blockSize = GetTextSize(font, textBlocks[pos].text);
-			if (lineWidth + blockSize.x > destWidth)
+			if (lineWidth + blockSize.x > wrapWidth)
 			{
 				float centerX = 0;
 				if (halign == EHAlign::Center || halign == EHAlign::Full)
