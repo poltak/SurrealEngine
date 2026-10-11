@@ -126,7 +126,8 @@ public:
 
 	void ToggleWindowFullscreen(Size newResolution);
 
-	std::string GetAvailableResolutions() const;
+	int GetLargestWindowMultiple();
+	std::string GetAvailableResolutions();
 	void SetResolution(const std::string& resolutionString);
 
 protected:

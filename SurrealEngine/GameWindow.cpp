@@ -181,23 +181,37 @@ void GameWindow::ExitLoop()
 	DisplayBackend::Get()->ExitLoop();
 }
 
-std::string GameWindow::GetAvailableResolutions() const
+// The largest N for which a window with a content area of N x 640 by N x 480 pixels fits on the screen (1 or more)
+int GameWindow::GetLargestWindowMultiple()
 {
-	std::string result = "";
+	Size screen = DisplayBackend::Get()->GetScreenSize();
+	double dpiScale = std::max(GetDpiScale(), 1.0);
+	const double reservedHeight = 110.0; // menu bar or task bar, title bar of the window and a part of the Dock, in points
+	int multiple = (int)std::min(std::floor(screen.width * dpiScale / 640.0), std::floor((screen.height - reservedHeight) * dpiScale / 480.0));
+	return std::max(multiple, 1);
+}
 
-	auto resolutions = QueryAvailableResolutions();
+// The list for the display settings screen of a game, in pixels, with a space between the entries.
+// It has each whole multiple of 640x480 that fits on the screen as a window, and the size of the window now.
+// The settings screen of Deus Ex shows an empty value if the size of the window is not in the list.
+std::string GameWindow::GetAvailableResolutions()
+{
+	Array<Size> resolutions;
+	int largest = GetLargestWindowMultiple();
+	for (int multiple = 1; multiple <= largest; multiple++)
+		AddResolutionIfNotAdded(resolutions, Size(multiple * 640, multiple * 480));
+	if (GetPixelWidth() >= 640 && GetPixelHeight() >= 480)
+		AddResolutionIfNotAdded(resolutions, Size(GetPixelWidth(), GetPixelHeight()));
 
-	// "Flatten" the resolutions list into a single string
-	for (int i = 0; i < resolutions.size(); i++)
+	std::sort(resolutions.begin(), resolutions.end(), [](const Size& a, const Size& b) { return a.width != b.width ? a.width < b.width : a.height < b.height; });
+
+	std::string result;
+	for (const Size& res : resolutions)
 	{
-		auto& res = resolutions[i];
-		std::string resString = std::to_string(int(res.width)) + "x" + std::to_string(int(res.height));
-
-		result += resString;
-		if (i < resolutions.size() - 1)
+		if (!result.empty())
 			result += " ";
+		result += std::to_string(int(res.width)) + "x" + std::to_string(int(res.height));
 	}
-
 	return result;
 }
 

@@ -1583,6 +1583,15 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 	{
 		LogMessage("Console command: setres " + args[1]);
 		window->SetResolution(args[1]);
+
+		// Keep the size that the player selects for the next start. The ini has the size in points.
+		int width = 0, height = 0;
+		if (!window->IsFullscreen() && sscanf(args[1].c_str(), "%dx%d", &width, &height) == 2 && width >= 640 && height >= 480)
+		{
+			double dpiScale = std::max(window->GetDpiScale(), 1.0);
+			client->SetPropertyFromString("WindowedViewportX", std::to_string((int)std::round(width / dpiScale)));
+			client->SetPropertyFromString("WindowedViewportY", std::to_string((int)std::round(height / dpiScale)));
+		}
 	}
 	else if (command == "togglefullscreen")
 	{
@@ -1829,11 +1838,8 @@ void Engine::OpenWindow()
 		// 640x480 screen mode, and a Mac has no such mode. Start in a window that is the largest whole multiple
 		// of 640x480 pixels that fits on the screen, because the game scales its screens by whole numbers.
 		// These values go to the ini of the engine when the game ends. The player can change them there.
-		Size screen = Widget::GetScreenSize();
 		double dpiScale = std::max(window->GetDpiScale(), 1.0);
-		const double reservedHeight = 110.0; // menu bar, title bar of the window and a part of the Dock, in points
-		int multiple = (int)std::min(std::floor(screen.width * dpiScale / 640.0), std::floor((screen.height - reservedHeight) * dpiScale / 480.0));
-		multiple = std::max(multiple, 1);
+		int multiple = window->GetLargestWindowMultiple();
 		client->StartupFullscreen = false;
 		client->WindowedViewportX = (int)std::round(640.0 * multiple / dpiScale);
 		client->WindowedViewportY = (int)std::round(480.0 * multiple / dpiScale);
