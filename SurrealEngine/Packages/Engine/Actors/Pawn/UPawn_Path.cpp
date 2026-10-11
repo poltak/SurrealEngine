@@ -10,6 +10,7 @@
 #include "VM/ScriptCall.h"
 #include "Utils/Logger.h"
 #include "Engine.h"
+#include "Utils/Random.h"
 
 UNavigationPoint* UPawn::SetRouteCache(const Array<UNavigationPoint*>& points)
 {
@@ -243,9 +244,7 @@ UObject* UPawn::FindRandomDest()
 	}
 
 	// Pick a random point from our candidates
-	float randomValue = rand() / (float)RAND_MAX;
-	int index = (int)std::round(randomValue * (float)(reachablePoints.size() - 1));
-	return reachablePoints[index];
+	return reachablePoints[RandInt((int)reachablePoints.size() - 1)];
 }
 
 UObject* UPawn::FindPathTo(const vec3& aPoint, bool bSinglePath)

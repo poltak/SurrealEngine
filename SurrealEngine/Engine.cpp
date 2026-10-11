@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "Engine.h"
+#include "Utils/Random.h"
 #include "Utils/CommandLine.h"
 #include "Harness.h"
 #include "Utils/File.h"
@@ -74,9 +75,11 @@ Engine::Engine(GameLaunchInfo launchinfo) : LaunchInfo(launchinfo)
 
 	packages = std::make_unique<PackageManager>(LaunchInfo);
 
-	std::srand((unsigned int)std::time(nullptr));
+	unsigned int randomSeed = (unsigned int)std::time(nullptr);
 	if (Harness::Get().Seed >= 0)
-		std::srand((unsigned int)Harness::Get().Seed);
+		randomSeed = (unsigned int)Harness::Get().Seed;
+	std::srand(randomSeed);
+	SeedRandom(randomSeed);
 
 	auto transientpkg = packages->GetTransientPackage();
 	auto enginepkg = packages->GetPackage("Engine");

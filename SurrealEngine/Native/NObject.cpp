@@ -1473,9 +1473,9 @@ void NObject::RotationToQuat_U227(Rotator& R, quaternion& ReturnValue)
 
 void NObject::RotRand(std::optional<bool> bRoll, Rotator& ReturnValue)
 {
-	ReturnValue.Yaw = (int)(std::rand() * 0xffffLL / RAND_MAX);
-	ReturnValue.Pitch = (int)(std::rand() * 0xffffLL / RAND_MAX);
-	ReturnValue.Roll = (bRoll && *bRoll) ? (int)(rand() * 65535LL / RAND_MAX) : 0;
+	ReturnValue.Yaw = RandInt(0xffff);
+	ReturnValue.Pitch = RandInt(0xffff);
+	ReturnValue.Roll = (bRoll && *bRoll) ? RandInt(0xffff) : 0;
 }
 
 void NObject::SaveConfig(UObject* Self)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UFractalTexture.h"
+#include "Utils/Random.h"
 
 enum class ESpark : uint8_t
 {
@@ -114,7 +115,7 @@ public:
 	BitfieldBool bRising() { return BoolValue(PropOffsets_FireTexture.bRising); }
 
 private:
-	int RandomByteValue() { return (int)(((int64_t)rand() * 255 + 127)/RAND_MAX); }
+	int RandomByteValue() { return VisualRandInt(255); }
 
 	Array<uint8_t> WorkBuffer;
 	uint8_t FadeTable[4 * 256];

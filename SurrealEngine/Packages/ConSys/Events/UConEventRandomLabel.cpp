@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "UConEventRandomLabel.h"
+#include "Utils/Random.h"
 
 void UConEventRandomLabel::Load(ObjectStream* stream)
 {
@@ -34,7 +35,7 @@ std::string UConEventRandomLabel::GetRandomLabel()
 		bLabelsCycled() = true;
 
 	if (!bCycleEvents() || (bCycleRandom() && bLabelsCycled()))
-		index = std::rand() % count;
+		index = RandInt(count - 1);
 	else if (!bCycleOnce())
 	{
 		index = cycleIndex() % count;

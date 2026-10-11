@@ -6,6 +6,7 @@
 #include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Packages/Engine/Resources/Level/UModel.h"
 #include "Packages/Engine/Resources/Textures/UTexture.h"
+#include "Utils/Random.h"
 
 UObject* UDecal::AttachDecal(float traceDistance, vec3 decalDir)
 {
@@ -32,7 +33,7 @@ UObject* UDecal::AttachDecal(float traceDistance, vec3 decalDir)
 		vec3 randomDir;
 		while (true)
 		{
-			randomDir = vec3((float)(std::rand() / (double)RAND_MAX), (float)(std::rand() / (double)RAND_MAX), (float)(std::rand() / (double)RAND_MAX)) * 2.0f - 1.0f;
+			randomDir = vec3(VisualFRand(), VisualFRand(), VisualFRand()) * 2.0f - 1.0f;
 			if (dot(randomDir, randomDir) >= 1.0f)
 				break;
 		}

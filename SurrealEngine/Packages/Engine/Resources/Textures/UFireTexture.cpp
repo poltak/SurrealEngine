@@ -242,8 +242,8 @@ void UFireTexture::UpdateFrame()
 						else if (y >= height) y -= height;
 						SetPixel(pixels, x, y, width, height, c);
 
-						x0 += (float)(rand() * 2.0 / RAND_MAX - 1.0);
-						y0 += (float)(rand() * 2.0 / RAND_MAX - 1.0);
+						x0 += VisualFRand() * 2.0f - 1.0f;
+						y0 += VisualFRand() * 2.0f - 1.0f;
 					}
 				}
 				break;

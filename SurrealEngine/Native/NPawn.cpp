@@ -10,6 +10,7 @@
 #include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Packages/Engine/Resources/USound.h"
 #include "Engine.h"
+#include "Utils/Random.h"
 
 void NPawn::RegisterFunctions()
 {
@@ -199,8 +200,7 @@ void NPawn::AIPickRandomDestination(UObject* Self, float minDist, float maxDist,
   
 	if (candidates.empty()) { dest = {}; return; }  
   
-	float r = static_cast<float>(static_cast<double>(std::rand()) / RAND_MAX);
-	size_t idx = static_cast<size_t>(r * candidates.size());  
+	size_t idx = (size_t)RandInt((int)candidates.size() - 1);
 	dest = candidates[idx]->Location();  
 }
 

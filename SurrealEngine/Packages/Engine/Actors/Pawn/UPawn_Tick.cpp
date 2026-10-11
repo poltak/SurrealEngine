@@ -7,6 +7,7 @@
 #include "Packages/Engine/Actors/Inventory/UWeapon.h"
 #include "Utils/Logger.h"
 #include "Engine.h"
+#include "Utils/Random.h"
 
 void UPawn::Tick(float elapsed)
 {
@@ -141,7 +142,7 @@ void UPawn::Tick(float elapsed)
 			//numbers are arbitrarily picked -> if it causes perf. problems, 
 			//maybe switch to using some limit of how many pawns can be evaluated 
 			//every frame
-			SightCounter() += 0.4f - 0.2f * (static_cast <float> (rand()) / static_cast <float> (RAND_MAX));
+			SightCounter() += 0.4f - 0.2f * FRand();
 
 			//search for target, if the pawn has an event to see them
 			if (IsEventEnabled(EventName::SeePlayer))
