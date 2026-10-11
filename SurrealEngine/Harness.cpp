@@ -7,6 +7,12 @@
 #include "Packages/Engine/UViewport.h"
 #include "Packages/Extension/Windows/TabGroup/URootWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
+#include "Packages/Core/UClass.h"
+#include "Native/NPlayerPawn.h"
+#include "Packages/Engine/Actors/Inventory/UInventory.h"
+#include "Packages/Extension/UPlayerPawnExt.h"
+#include "Packages/Extension/Flags/UFlagBase.h"
+#include "Packages/Extension/Flags/UFlag.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Utils/CommandLine.h"
@@ -82,9 +88,15 @@ void Harness::LoadScript(const std::string& filename)
 	std::string line;
 	while (std::getline(lines, line))
 	{
-		size_t comment = line.find('#');
-		if (comment != std::string::npos)
-			line = line.substr(0, comment);
+		// A comment starts with '#' at the start of the line or after a space. A map URL can have '#' in it.
+		for (size_t comment = line.find('#'); comment != std::string::npos; comment = line.find('#', comment + 1))
+		{
+			if (comment == 0 || line[comment - 1] == ' ' || line[comment - 1] == '\t')
+			{
+				line = line.substr(0, comment);
+				break;
+			}
+		}
 		std::istringstream parts(line);
 		Event e;
 		if (!(parts >> e.Time >> e.Command))
@@ -394,6 +406,70 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			}
 			LogMessage(text);
 		}
+	}
+	else if (e.Command == "travel")
+	{
+		// travel <url>: send the player to a map as a map exit does it (a relative travel with items)
+		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
+		if (player && !e.Args.empty())
+			NPlayerPawn::ClientTravel(player, e.Args, (uint8_t)ETravelType::TRAVEL_Relative, true);
+	}
+	else if (e.Command == "flags")
+	{
+		// flags [text]: log the number of flags of the player, and each flag whose name contains the text
+		auto player = engine->viewport ? UObject::TryCast<UPlayerPawnExt>(engine->viewport->Actor()) : nullptr;
+		UFlagBase* flagBase = player ? player->FlagBase() : nullptr;
+		if (!flagBase)
+		{
+			LogMessage("Harness: flags: the player has no flag base");
+		}
+		else
+		{
+			int count = 0;
+			std::string list;
+			auto table = flagBase->hashTable();
+			for (int i = 0; i < UFlagBase::HashTableSize; i++)
+			{
+				for (UFlag* flag = table[i]; flag; flag = flag->nextFlag())
+				{
+					count++;
+					std::string name = flag->FlagName().ToString();
+					if (e.Args.empty() || name.find(e.Args) == std::string::npos)
+						continue;
+					list += " " + name;
+					if (flag->flagType() == (uint8_t)EFlagType::Bool)
+						list += flagBase->GetBool(flag->FlagName()) ? "=True" : "=False";
+					list += "(exp " + std::to_string(flag->expiration()) + ")";
+				}
+			}
+			LogMessage("Harness: flags count=" + std::to_string(count) + list);
+		}
+	}
+	else if (e.Command == "setflag")
+	{
+		// setflag <name> <true|false>: set a bool flag of the player
+		std::string name, value;
+		std::istringstream parts(e.Args);
+		parts >> name >> value;
+		auto player = engine->viewport ? UObject::TryCast<UPlayerPawnExt>(engine->viewport->Actor()) : nullptr;
+		if (player && player->FlagBase() && !name.empty())
+		{
+			player->FlagBase()->SetBool(name, value != "false" && value != "False" && value != "0", true, 0);
+			LogMessage("Harness: setflag " + name);
+		}
+	}
+	else if (e.Command == "inv")
+	{
+		// inv: log the inventory chain of the player
+		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
+		std::string list;
+		int count = 0;
+		for (UInventory* item = player ? player->Inventory() : nullptr; item && count < 200; item = item->Inventory())
+		{
+			list += " " + item->Class->Name.ToString();
+			count++;
+		}
+		LogMessage("Harness: inv count=" + std::to_string(count) + list);
 	}
 	else if (e.Command == "shot")
 	{
