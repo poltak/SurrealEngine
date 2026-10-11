@@ -752,12 +752,11 @@ void UWindow::PlaySound(UObject* newsound, std::optional<float> Volume, std::opt
 	{
 		int slot = SLOT_Misc;
 		int id = ((((int)(ptrdiff_t)this) & 0xffffff) << 4) + (slot << 1);
+		// XWindow::PlaySound: with no volume, the sound has the volume of the window (SetSoundVolume).
+		// The sound plays at the player. The original uses the position in the window only for the left and right balance.
+		float volume = (Volume && *Volume >= 0.0f) ? *Volume : SoundVolume();
 		vec3 location = player->Location();
-		if (posX)
-			location.x = *posX;
-		if (posY)
-			location.y = *posY;
-		engine->audiodev->PlaySound(player, id, s, location, Volume ? *Volume : 1.0f, player->WorldSoundRadius(), Pitch ? *Pitch : 1.0f, false);
+		engine->audiodev->PlaySound(player, id, s, location, volume, player->WorldSoundRadius(), Pitch ? *Pitch : 1.0f, false);
 	}
 }
 
