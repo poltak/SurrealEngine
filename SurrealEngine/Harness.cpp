@@ -12,6 +12,8 @@
 #include "RenderDevice/RenderDevice.h"
 #include "Packages/Engine/UViewport.h"
 #include "Packages/Extension/Windows/TabGroup/URootWindow.h"
+#include "Packages/Extension/Windows/Text/UTextWindow.h"
+#include "Packages/Extension/Windows/UListWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Core/UClass.h"
 #include "Native/NPlayerPawn.h"
@@ -599,6 +601,7 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	{
 		// windows: log each visible window of the Deus Ex interface: class, place in its parent, size, and flags.
 		// "focus" marks the window that gets the keys, "mouse" the window under the mouse.
+		// A text window also has the start of its text, and a list window its count of rows.
 		URootWindow* root = engine->dxRootWindow;
 		if (!root)
 		{
@@ -612,11 +615,29 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 				{
 					if (!window->bIsVisible())
 						return;
-					char buf[400];
-					snprintf(buf, sizeof(buf), "Harness: window %*s%s x=%d y=%d w=%d h=%d%s%s%s%s", depth * 2, "", UObject::GetUClassName(window).ToString().c_str(),
+					// A text window also shows the start of its text, and a list window its count of rows
+					std::string content;
+					if (auto textWindow = UObject::TryCast<UTextWindow>(window))
+					{
+						std::string text = textWindow->Text().substr(0, 48);
+						for (char& c : text)
+						{
+							if (c == '\n' || c == '\r')
+								c = ' ';
+						}
+						if (!text.empty())
+							content = " text=\"" + text + "\"";
+					}
+					else if (auto listWindow = UObject::TryCast<UListWindow>(window))
+					{
+						content = " rows=" + std::to_string(listWindow->GetNumRows());
+					}
+
+					char buf[500];
+					snprintf(buf, sizeof(buf), "Harness: window %*s%s x=%d y=%d w=%d h=%d%s%s%s%s%s", depth * 2, "", UObject::GetUClassName(window).ToString().c_str(),
 						(int)window->UsedX, (int)window->UsedY, (int)window->Width(), (int)window->Height(),
 						window->bIsSelectable() ? " selectable" : "", window->bIsSensitive() ? "" : " not-sensitive",
-						window == root->FocusWindow() ? " focus" : "", window == root->lastMouseWindow() ? " mouse" : "");
+						window == root->FocusWindow() ? " focus" : "", window == root->lastMouseWindow() ? " mouse" : "", content.c_str());
 					LogMessage(buf);
 					for (UWindow* child = window->lastChild(); child; child = child->prevSibling())
 						Window(root, child, depth + 1);
