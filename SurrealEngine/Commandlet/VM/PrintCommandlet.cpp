@@ -58,7 +58,7 @@ std::vector<std::pair<std::string, std::string>> PrintCommandlet::FindProperties
 		// Search local variables
 		for (UProperty* prop : frame->Func->Properties)
 		{
-			if (prop->Name == chunks[0])
+			if (prop->Name == chunks[0] && frame->Variables)
 			{
 				void* ptr = (uint8_t*)frame->Variables->Data + prop->DataOffset.DataOffset;
 				if (UObject::TryCast<UObjectProperty>(prop) || UObject::TryCast<UClassProperty>(prop))

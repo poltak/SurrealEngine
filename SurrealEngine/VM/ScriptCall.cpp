@@ -70,7 +70,7 @@ ExpressionValue CallEvent(UObject* Context, EventName eventname, Array<Expressio
 	if (!Context->IsEventEnabled(eventname))
 		return ExpressionValue::NothingValue();
 
-	if (auto actor = UObject::TryCast<UActor>(Context))
+	if (UActor* actor = Context->AsActor())
 	{
 		if (!actor->Level()->bBegunPlay() || (actor->bDeleteMe() && eventname != EventName::Destroyed))
 			return ExpressionValue::NothingValue();
@@ -88,7 +88,7 @@ ExpressionValue CallEvent(UObject* Context, const NameString& name, Array<Expres
 	if (!Context->IsEventEnabled(name))
 		return ExpressionValue::NothingValue();
 
-	if (auto actor = UObject::TryCast<UActor>(Context))
+	if (UActor* actor = Context->AsActor())
 	{
 		if (!actor->Level()->bBegunPlay() || actor->bDeleteMe())
 			return ExpressionValue::NothingValue();
@@ -103,35 +103,5 @@ ExpressionValue CallEvent(UObject* Context, const NameString& name, Array<Expres
 
 UFunction* FindEventFunction(UObject* Context, const NameString& name)
 {
-	// Search states first
-
-	NameString stateName = Context->GetStateName();
-	if (!stateName.IsNone())
-	{
-		for (UClass* cls = Context->Class; cls != nullptr; cls = static_cast<UClass*>(cls->BaseStruct))
-		{
-			UState* state = cls->GetState(stateName);
-			if (state)
-			{
-				UFunction* func = state->GetFunction(name);
-				if (func)
-				{
-					return func;
-				}
-			}
-		}
-	}
-
-	// Search normal member functions next
-
-	for (UClass* cls = Context->Class; cls != nullptr; cls = static_cast<UClass*>(cls->BaseStruct))
-	{
-		UFunction* func = cls->GetFunction(name);
-		if (func)
-		{
-			return func;
-		}
-	}
-
-	return nullptr;
+	return Context->Class->FindVirtualFunction(Context->GetStateName(), name);
 }

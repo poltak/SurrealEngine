@@ -13,7 +13,7 @@ LocalsCommandlet::LocalsCommandlet()
 void LocalsCommandlet::OnCommand(DebuggerApp* console, const std::string& args)
 {
 	Frame* frame = console->GetCurrentFrame();
-	if (frame)
+	if (frame && frame->Variables)
 	{
 		for (UProperty* prop : frame->Func->Properties)
 		{

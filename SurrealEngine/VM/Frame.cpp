@@ -20,6 +20,9 @@ Frame* Frame::StepFrame = nullptr;
 Expression* Frame::StepExpression = nullptr;
 std::string Frame::ExceptionText;
 std::unique_ptr<Iterator> Frame::CreatedIterator;
+uint64_t Frame::ScriptCallCount = 0;
+uint64_t Frame::NativeCallCount = 0;
+uint64_t Frame::StatementCount = 0;
 
 Frame::Frame(UObject* instance, UStruct* func)
 {
@@ -27,10 +30,17 @@ Frame::Frame(UObject* instance, UStruct* func)
 	SetState(func);
 }
 
+Frame::Frame(UObject* instance, UStruct* func, NoVariables)
+{
+	Object = instance;
+	Func = func;
+}
+
 void Frame::SetState(UStruct* func)
 {
 	Func = func;
-	Variables = std::make_unique<LocalVariables>(func);
+	VariableStorage.emplace(func);
+	Variables = &*VariableStorage;
 }
 
 bool Frame::AddBreakpoint(const NameString& clsName, const NameString& funcName, const NameString& stateName, int statementIndex)
@@ -201,15 +211,23 @@ std::string Frame::GetCallstack()
 
 ExpressionValue Frame::Call(UFunction* func, UObject* instance, ArrayView<ExpressionValue> args)
 {
-	// To do: fix this as it produces a memory allocation
-	Array<ExpressionValue> args2;
-	args2.reserve(args.size());
+	CallArgList list;
 	for (auto& arg : args)
-		args2.push_back(std::move(arg));
-	return Call(func, instance, args2);
+		list.push_back(std::move(arg));
+	return Call(func, instance, list);
 }
 
 ExpressionValue Frame::Call(UFunction* func, UObject* instance, Array<ExpressionValue> args)
+{
+	CallArgList list;
+	for (auto& arg : args)
+		list.push_back(std::move(arg));
+	return Call(func, instance, list);
+}
+
+// Note: func->Properties has the parameters and the local variables of the function, in the order of func->Children
+
+ExpressionValue Frame::Call(UFunction* func, UObject* instance, CallArgList& args)
 {
 	if (!instance)
 	{
@@ -226,51 +244,45 @@ ExpressionValue Frame::Call(UFunction* func, UObject* instance, Array<Expression
 	}
 
 	// Trailing optional args may be missing. Add nothing values so the args list matches the function signature.
-	int argindex = 0;
-	for (UField* field = func->Children; field != nullptr; field = field->Next)
+	size_t argindex = 0;
+	for (UProperty* prop : func->Properties)
 	{
-		UProperty* prop = UObject::TryCast<UProperty>(field);
-		if (prop)
-		{
-			if (argindex == args.size() && AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::OptionalParm))
-				args.push_back(ExpressionValue::NothingValue());
+		if (argindex == args.size() && AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::OptionalParm))
+			args.push_back(ExpressionValue::NothingValue());
 
-			if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
-				argindex++;
-		}
+		if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
+			argindex++;
 	}
 
 	if (AllFlags(func->FuncFlags, FunctionFlags::Native))
 	{
-		return CallNative(func, instance, std::move(args));
+		NativeCallCount++;
+		return CallNative(func, instance, args);
 	}
 	else
 	{
-		return CallScript(func, instance, std::move(args));
+		ScriptCallCount++;
+		return CallScript(func, instance, args);
 	}
 }
 
-ExpressionValue Frame::CallScript(UFunction* func, UObject* instance, Array<ExpressionValue> args)
+ExpressionValue Frame::CallScript(UFunction* func, UObject* instance, CallArgList& args)
 {
 	Frame frame(instance, func);
 
 	// Store args in function frame local variables
-	int argindex = 0;
-	for (UField* field = func->Children; field != nullptr; field = field->Next)
+	size_t argindex = 0;
+	for (UProperty* prop : func->Properties)
 	{
-		UProperty* prop = UObject::TryCast<UProperty>(field);
-		if (prop)
+		if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
 		{
-			ExpressionValue lvalue = ExpressionValue::Variable(frame.Variables->Data, prop);
-			if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
+			if (argindex < args.size())
 			{
-				if (argindex < args.size())
-				{
-					lvalue.Store(args[argindex]);
-				}
-
-				argindex++;
+				ExpressionValue lvalue = ExpressionValue::Variable(frame.Variables->Data, prop);
+				lvalue.Store(args[argindex]);
 			}
+
+			argindex++;
 		}
 	}
 
@@ -282,111 +294,70 @@ ExpressionValue Frame::CallScript(UFunction* func, UObject* instance, Array<Expr
 
 	// Copy out params from frame local variables
 	argindex = 0;
-	for (UField* field = func->Children; field != nullptr; field = field->Next)
+	for (UProperty* prop : func->Properties)
 	{
-		UProperty* prop = UObject::TryCast<UProperty>(field);
-		if (prop)
+		if (AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::OutParm) && argindex < args.size())
 		{
 			ExpressionValue lvalue = ExpressionValue::Variable(frame.Variables->Data, prop);
-
-			if (AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::OutParm) && argindex < args.size())
-			{
-				args[argindex].Store(lvalue);
-			}
-
-			if (AllFlags(prop->PropFlags, PropertyFlags::ReturnParm) && result.GetType() == ExpressionValueType::Nothing)
-			{
-				result = ExpressionValue::DefaultValue(prop);
-			}
-
-			if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
-				argindex++;
+			args[argindex].Store(lvalue);
 		}
+
+		if (AllFlags(prop->PropFlags, PropertyFlags::ReturnParm) && result.GetType() == ExpressionValueType::Nothing)
+		{
+			result = ExpressionValue::DefaultValue(prop);
+		}
+
+		if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
+			argindex++;
 	}
 
 	return result;
 }
 
-ExpressionValue Frame::CallNative(UFunction* func, UObject* instance, Array<ExpressionValue> args)
+ExpressionValue Frame::CallNative(UFunction* func, UObject* instance, CallArgList& args)
 {
 	// Native functions expect the last parameter to be the return value
 	bool returnparmfound = false;
-	int argindex = 0;
-	for (UField* field = func->Children; field != nullptr; field = field->Next)
+	for (UProperty* prop : func->Properties)
 	{
-		UProperty* prop = UObject::TryCast<UProperty>(field);
-		if (prop)
+		if (AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::ReturnParm))
 		{
-			if (AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::ReturnParm))
-			{
-				ExpressionValue retval = ExpressionValue::PropertyValue(prop);
-				args.push_back(std::move(retval));
-				returnparmfound = true;
-			}
-			if (AllFlags(prop->PropFlags, PropertyFlags::Parm))
-				argindex++;
+			args.push_back(ExpressionValue::PropertyValue(prop));
+			returnparmfound = true;
 		}
 	}
 
+	NativeFuncHandler* callback = nullptr;
 	if (func->NativeFuncIndex != 0)
-	{
-		auto& callback = NativeFunctions::NativeByIndex[func->NativeFuncIndex];
-		if (callback)
-		{
-			Frame frame(instance, func);
-			ActiveCallStackFrame activeFrame(&frame);
-			try
-			{
-				callback(instance, args.data());
-			}
-			catch (const std::exception& e)
-			{
-				LogMessage(std::string("Script error: ") + e.what());
-				return ExpressionValue::NothingValue();
-			}
-			catch (...)
-			{
-				LogMessage("Script error: Unknown error");
-				return ExpressionValue::NothingValue();
-			}
-		}
-		else
-		{
-			Exception::Throw("Unknown native function " + func->NativeStruct->Name.ToString() + "." + func->Name.ToString());
-		}
-	}
+		callback = &NativeFunctions::NativeByIndex[func->NativeFuncIndex];
 	else
+		callback = &NativeFunctions::NativeByName[{ func->Name, func->NativeStruct->Name }];
+
+	if (!*callback)
+		Exception::Throw("Unknown native function " + func->NativeStruct->Name.ToString() + "." + func->Name.ToString());
+
+	// The frame is only for the call stack. A native function has its arguments in "args" and uses no frame variables.
+	Frame frame(instance, func, NoVariables());
+	ActiveCallStackFrame activeFrame(&frame);
+	try
 	{
-		auto& callback = NativeFunctions::NativeByName[{ func->Name, func->NativeStruct->Name }];
-		if (callback)
-		{
-			Frame frame(instance, func);
-			ActiveCallStackFrame activeFrame(&frame);
-			try
-			{
-				callback(instance, args.data());
-			}
-			catch (const std::exception& e)
-			{
-				LogMessage(std::string("Script error: ") + e.what());
-				return ExpressionValue::NothingValue();
-			}
-			catch (...)
-			{
-				LogMessage("Script error: Unknown error");
-				return ExpressionValue::NothingValue();
-			}
-		}
-		else
-		{
-			Exception::Throw("Unknown native function " + func->NativeStruct->Name.ToString() + "." + func->Name.ToString());
-		}
+		(*callback)(instance, args.data());
+	}
+	catch (const std::exception& e)
+	{
+		LogMessage(std::string("Script error: ") + e.what());
+		return ExpressionValue::NothingValue();
+	}
+	catch (...)
+	{
+		LogMessage("Script error: Unknown error");
+		return ExpressionValue::NothingValue();
 	}
 
 	return returnparmfound ? std::move(args.back()) : ExpressionValue::NothingValue();
 }
 
-void Frame::TraceCall(UFunction* func, UObject* instance, const Array<ExpressionValue>& args)
+void Frame::TraceCall(UFunction* func, UObject* instance, CallArgList& args)
 {
 #if 0 // To do: create a commandlet that lets us do this
 	static NameString TraceActorClass = "CTFGame";
@@ -511,6 +482,7 @@ ExpressionEvalResult Frame::Run()
 			Break();
 		}
 
+		StatementCount++;
 		Expression* statement = Func->Code->Statements[curStatementIndex];
 		//ExpressionEvalResult result = ExpressionEvaluator::Eval(statement, Object, Object, Variables->Data);
 		ExpressionEvalResult result = RunExpr(statement, Object, Object, Variables->Data);
@@ -564,10 +536,9 @@ ExpressionEvalResult Frame::Run()
 			// Package 61 and earlier transfered the return value in an out parameter
 			if (!static_cast<ReturnExpression*>(statement)->Value)
 			{
-				for (UField* field = Func->Children; field != nullptr; field = field->Next)
+				for (UProperty* prop : Func->Properties)
 				{
-					UProperty* prop = UObject::TryCast<UProperty>(field);
-					if (prop && AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::ReturnParm))
+					if (AllFlags(prop->PropFlags, PropertyFlags::Parm | PropertyFlags::ReturnParm))
 					{
 						result.Value = ExpressionValue::Variable(Variables->Data, prop);
 						result.Value.Load();
@@ -647,14 +618,44 @@ struct VMStackFrame // To do: include local variables in this
 {
 	Expression* expr[32];
 	int pass[32];
-	ExpressionValue value[32];
 	UObject* context[32];
+
+	// A value slot is constructed when the stack first gets to it. Most statements use two or three of the 32 slots,
+	// and the construction and destruction of all 32 for each statement took a large part of the script time.
+	ExpressionValue& Value(int index) { return reinterpret_cast<ExpressionValue*>(valueStorage)[index]; }
+
+	void Push(int index, ExpressionValue&& v)
+	{
+		if (index < constructed)
+			Value(index).~ExpressionValue();
+		else
+			constructed++;
+		new(&Value(index)) ExpressionValue(std::move(v));
+	}
+
+	void Push(int index, const ExpressionValue& v)
+	{
+		if (index < constructed)
+			Value(index).~ExpressionValue();
+		else
+			constructed++;
+		new(&Value(index)) ExpressionValue(v);
+	}
+
+	~VMStackFrame()
+	{
+		for (int i = 0; i < constructed; i++)
+			Value(i).~ExpressionValue();
+	}
+
+	alignas(ExpressionValue) uint8_t valueStorage[32 * sizeof(ExpressionValue)];
+	int constructed = 0;
 };
 
 #define PushExpr(e) stack.pass[exprEnd] = 0; stack.expr[exprEnd++] = (e);
 #define PopExpr() --exprEnd
-#define PushValue(v) stack.value[valueEnd++] = (v)
-#define PopValue() stack.value[--valueEnd]
+#define PushValue(v) stack.Push(valueEnd++, (v))
+#define PopValue() stack.Value(--valueEnd)
 #define PushContext(c) stack.context[contextEnd++] = context; context = (c)
 #define PopContext() context = stack.context[--contextEnd]
 
@@ -690,7 +691,7 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 			break;
 
 		case ExpressionType::DefaultVariable:
-			if (UObject::TryCast<UClass>(context))
+			if (context->AsClass())
 				PushValue(ExpressionValue::Variable(context->PropertyData.Data, static_cast<DefaultVariableExpression*>(expr)->Variable));
 			else
 				PushValue(ExpressionValue::Variable(context->Class->GetDefaultObject<UObject>()->PropertyData.Data, static_cast<DefaultVariableExpression*>(expr)->Variable));
@@ -1744,53 +1745,21 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 				PopContext();
 
 				auto funcExpr = static_cast<VirtualFunctionExpression*>(expr);
-				ArrayView<ExpressionValue> funcArgs(&stack.value[valueEnd - funcExpr->Args.size()], funcExpr->Args.size());
+				ArrayView<ExpressionValue> funcArgs(&stack.Value(valueEnd - (int)funcExpr->Args.size()), funcExpr->Args.size());
 				valueEnd -= (int)funcArgs.size();
 
-				UClass* contextClass = UObject::TryCast<UClass>(context);
+				UClass* contextClass = context->AsClass();
 				if (!contextClass)
 					contextClass = context->Class;
 
-				// Search states first
-
-				NameString stateName = context->GetStateName();
-				bool found = false;
-				for (UClass* cls = contextClass; cls != nullptr; cls = static_cast<UClass*>(cls->BaseStruct))
+				// The state functions first, then the normal member functions
+				UFunction* func = contextClass->FindVirtualFunction(context->GetStateName(), funcExpr->Name);
+				if (func)
 				{
-					UState* state = cls->GetState(stateName);
-					if (state)
-					{
-						UFunction* func = state->GetFunction(funcExpr->Name);
-						if (func)
-						{
-							PushValue(Frame::Call(func, context, funcArgs));
-							PopExpr();
-							found = true;
-							break;
-						}
-					}
+					PushValue(Frame::Call(func, context, funcArgs));
+					PopExpr();
 				}
-
-				if (!found)
-				{
-					// Search normal member functions next
-					for (UClass* cls = contextClass; !found && cls != nullptr; cls = static_cast<UClass*>(cls->BaseStruct))
-					{
-						for (UField* field = cls->Children; field != nullptr; field = field->Next)
-						{
-							UFunction* func = UObject::TryCast<UFunction>(field);
-							if (func && func->Name == funcExpr->Name)
-							{
-								PushValue(Frame::Call(func, context, funcArgs));
-								PopExpr();
-								found = true;
-								break;
-							}
-						}
-					}
-				}
-
-				if (!found)
+				else
 				{
 					Frame::ThrowException("Script virtual function " + funcExpr->Name.ToString() + " not found!");
 					PushValue(ExpressionValue::NothingValue());
@@ -1812,7 +1781,7 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 			{
 				PopContext();
 				auto funcExpr = static_cast<FinalFunctionExpression*>(expr);
-				ArrayView<ExpressionValue> funcArgs(&stack.value[valueEnd - funcExpr->Args.size()], funcExpr->Args.size());
+				ArrayView<ExpressionValue> funcArgs(&stack.Value(valueEnd - (int)funcExpr->Args.size()), funcExpr->Args.size());
 				valueEnd -= (int)funcArgs.size();
 
 				PushValue(Frame::Call(funcExpr->Func, context, funcArgs));
@@ -1834,30 +1803,25 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 			{
 				PopContext();
 				auto funcExpr = static_cast<GlobalFunctionExpression*>(expr);
-				ArrayView<ExpressionValue> funcArgs(&stack.value[valueEnd - funcExpr->Args.size()], funcExpr->Args.size());
+				ArrayView<ExpressionValue> funcArgs(&stack.Value(valueEnd - (int)funcExpr->Args.size()), funcExpr->Args.size());
 				valueEnd -= (int)funcArgs.size();
 
 				// Global function calls skip the states and only searches normal member functions
 
-				UClass* contextClass = UObject::TryCast<UClass>(context);
+				UClass* contextClass = context->AsClass();
 				if (!contextClass)
 					contextClass = context->Class;
 
-				bool found = false;
-				for (UClass* cls = contextClass; cls != nullptr; cls = static_cast<UClass*>(cls->BaseStruct))
+				UFunction* func = contextClass->FindVirtualFunction(NameString(), funcExpr->Name);
+				if (func)
 				{
-					UFunction* func = cls->GetFunction(funcExpr->Name);
-					if (func)
-					{
-						PushValue(Frame::Call(func, context, funcArgs));
-						PopExpr();
-						found = true;
-						break;
-					}
+					PushValue(Frame::Call(func, context, funcArgs));
+					PopExpr();
 				}
-
-				if (!found)
+				else
+				{
 					Frame::ThrowException("Script global function " + static_cast<GlobalFunctionExpression*>(expr)->Name.ToString() + " not found!");
+				}
 			}
 			break;
 
@@ -1936,7 +1900,7 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 				{
 					PopContext();
 					auto funcExpr = static_cast<NativeFunctionExpression*>(expr);
-					ArrayView<ExpressionValue> funcArgs(&stack.value[valueEnd - funcExpr->Args.size()], funcExpr->Args.size());
+					ArrayView<ExpressionValue> funcArgs(&stack.Value(valueEnd - (int)funcExpr->Args.size()), funcExpr->Args.size());
 					valueEnd -= (int)funcArgs.size();
 
 					PushValue(Frame::Call(NativeFunctions::FuncByIndex[funcExpr->nativeindex], context, funcArgs));
@@ -1970,7 +1934,10 @@ LocalVariables::LocalVariables(UStruct* func) : Func(func)
 {
 	if (func)
 	{
-		Data = AlignedAlloc(func->StructAlignment, func->StructSize);
+		if (func->StructSize <= InlineSize && func->StructAlignment <= InlineAlignment)
+			Data = InlineData;
+		else
+			Data = AlignedAlloc(func->StructAlignment, func->StructSize);
 
 		for (UProperty* prop : func->Properties)
 		{
@@ -1989,5 +1956,6 @@ LocalVariables::~LocalVariables()
 		}
 	}
 
-	AlignedFree(Data);
+	if (Data != InlineData)
+		AlignedFree(Data);
 }

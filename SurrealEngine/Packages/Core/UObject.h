@@ -273,6 +273,13 @@ public:
 	virtual void Load(ObjectStream* stream);
 	virtual void Save(PackageStreamWriter* stream);
 
+	// The object as a class, or null if it is not a class. The script engine asks this for each function call,
+	// and a dynamic_cast is much slower.
+	virtual UClass* AsClass() { return nullptr; }
+
+	// The object as an actor, or null if it is not an actor. Each event call asks this.
+	virtual class UActor* AsActor() { return nullptr; }
+
 	bool HasProperty(const NameString& name) const;
 	void* GetProperty(const NameString& name);
 	const void* GetProperty(const NameString& name) const;

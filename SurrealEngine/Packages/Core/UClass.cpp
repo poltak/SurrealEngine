@@ -489,3 +489,34 @@ void UClass::SaveProperties(PropertyDataBlock* propertyBlock)
 		}
 	}
 }
+
+
+UFunction* UClass::FindVirtualFunction(const NameString& stateName, const NameString& name)
+{
+	uint64_t key = ((uint64_t)(uint32_t)stateName.GetCompareIndex() << 32) | (uint32_t)name.GetCompareIndex();
+	auto it = VirtualFunctionCache.find(key);
+	if (it != VirtualFunctionCache.end())
+		return it->second;
+
+	UFunction* func = nullptr;
+
+	// Search states first
+	if (!stateName.IsNone())
+	{
+		for (UClass* cls = this; cls != nullptr && !func; cls = static_cast<UClass*>(cls->BaseStruct))
+		{
+			UState* state = cls->GetState(stateName);
+			if (state)
+				func = state->GetFunction(name);
+		}
+	}
+
+	// Search normal member functions next
+	for (UClass* cls = this; cls != nullptr && !func; cls = static_cast<UClass*>(cls->BaseStruct))
+	{
+		func = cls->GetFunction(name);
+	}
+
+	VirtualFunctionCache[key] = func;
+	return func;
+}

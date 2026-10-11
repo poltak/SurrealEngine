@@ -368,6 +368,8 @@ class UActor : public UObject
 public:
 	using UObject::UObject;
 
+	UActor* AsActor() override { return this; }
+
 	UActor* Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std::optional<NameString> SpawnTag, std::optional<vec3> SpawnLocation, std::optional<Rotator> SpawnRotation, bool noCollisionFail = false);
 	bool Destroy();
 	void InitBase();

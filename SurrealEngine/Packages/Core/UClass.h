@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UState.h"
+#include <unordered_map>
 
 struct Guid
 {
@@ -66,6 +67,18 @@ public:
 
 	UState* GetState(const NameString& name) { auto it = States.find(name); if (it != States.end()) return it->second; else return nullptr; }
 	std::map<NameString, UState*> States;
+
+	UClass* AsClass() override { return this; }
+
+	// The function that a call by name gets for an object of this class in the given state (None = no state):
+	// first the state and its parent states through the class chain, then the member functions through the class chain.
+	// The result is in a cache, because the classes do not change while the game runs.
+	UFunction* FindVirtualFunction(const NameString& stateName, const NameString& name);
+
+private:
+	std::unordered_map<uint64_t, UFunction*> VirtualFunctionCache;
+
+public:
 
 private:
 	std::map<NameString, std::string> ParseStructValue(const std::string& text);
