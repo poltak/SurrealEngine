@@ -491,6 +491,12 @@ void PackageManager::ScanPaths()
 	const auto savePath = convert_path_separators(GetIniValue("System", "Core.System", "SavePath"));
 	gameSaveFolderPath = (gameSystemFolderPath / savePath).lexically_normal();
 
+	// A copy of the game files often has no Save folder, and the engine needs it
+	{
+		std::error_code ec;
+		fs::create_directories(gameSaveFolderPath, ec);
+	}
+
 	const auto cachePath = convert_path_separators(GetIniValue("System", "Core.System", "CachePath"));
 	gameCacheFolderPath = (gameSystemFolderPath / cachePath).lexically_normal();
 
