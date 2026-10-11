@@ -198,12 +198,13 @@ public:
 	bool IsSensitive(std::optional<bool> bRecurse);
 	bool IsVisible(std::optional<bool> bRecurse);
 	void Lower();
-	//UObject* MoveFocus(EMove direction);
+	UObject* MoveFocus(EMove direction, bool forceWrap);
+	UObject* MoveTabGroup(EMove direction);
+	bool IsTraversable(bool checkModal);
 	UObject* MoveFocusDown();
 	UObject* MoveFocusLeft();
 	UObject* MoveFocusRight();
 	UObject* MoveFocusUp();
-	//UObject* MoveTabGroup(EMove dir);
 	UObject* MoveTabGroupNext();
 	UObject* MoveTabGroupPrev();
 	UObject* NewChild(UObject* NewClass, std::optional<bool> bShow = {});

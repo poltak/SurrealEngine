@@ -214,6 +214,9 @@ bool URootWindow::SetRootFocusWindow(UWindow* newFocusWindow)
 		FocusWindow() = newFocusWindow;
 		if (newFocusWindow)
 		{
+			// As XWindow::SetFocusWindow: a scroll area brings the window with the focus into view
+			newFocusWindow->AskParentToShowArea(0.0f, 0.0f, newFocusWindow->Width(), newFocusWindow->Height());
+
 			// Note: this order is in reverse. Hopefully it doesn't matter.
 			newFocusWindow->FocusEnteredWindow();
 			if(newFocusWindow != ancestor)

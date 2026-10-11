@@ -3,6 +3,7 @@
 #include "UWindow.h"
 #include "UGC.h"
 #include "TabGroup/URootWindow.h"
+#include "TabGroup/UClipWindow.h"
 #include "Audio/AudioDevice.h"
 #include "VM/ScriptCall.h"
 #include "Engine.h"
@@ -535,13 +536,6 @@ URootWindow* UWindow::GetRootWindow()
 	return UObject::TryCast<URootWindow>(cur);
 }
 
-UObject* UWindow::GetTabGroupWindow()
-{
-	// Not called directly by script
-	LogUnimplemented("Window.GetTabGroupWindow");
-	return nullptr;
-}
-
 double UWindow::WindowsTickOffset = 0.0;
 
 float UWindow::GetTickOffset()
@@ -655,65 +649,311 @@ void UWindow::Lower()
 	}
 }
 
-/*
-UObject* UWindow::MoveFocus(EMove direction)
+// Keyboard focus navigation follows XWindow in Extension.dll (build 1112fm).
+//
+// The original keeps two sorted tables of the selectable windows in each tab group, and a sorted table of the tab
+// groups in each modal window. The functions here make the same lists at the time of the key press.
+
+namespace
 {
-	auto root = GetRootWindow();
-	if(root)
+	vec2 AbsoluteOrigin(UWindow* window)
 	{
-		int hmref = root->handleMouseRef();
-		if (!hmref)
-			MoveTabGroup(dir);
-		else {
-			UTabGroupWindow* tabWindow = UObject::Cast<UTabGroupWindow*>(GetTabGroupWindow());
-			if (tabWindow)
-			{
-				bool wrapFocus = bWrapFocus();
-			}
+		vec2 pos(0.0f);
+		for (UWindow* cur = window; cur; cur = cur->parentOwner())
+		{
+			pos.x += cur->UsedX;
+			pos.y += cur->UsedY;
+		}
+		return pos;
+	}
+
+	// The selectable windows that have this tab group as their nearest tab group
+	void CollectTabGroupWindows(UWindow* group, UWindow* window, std::vector<UWindow*>& list)
+	{
+		if (window->bIsSelectable())
+			list.push_back(window);
+		for (UWindow* child = window->firstChild(); child; child = child->nextSibling())
+		{
+			if (!UObject::TryCast<UTabGroupWindow>(child))
+				CollectTabGroupWindows(group, child, list);
+		}
+	}
+
+	// Row major order is from top to bottom and then from left to right. Column major order is the other way.
+	std::vector<UWindow*> SortedTabGroupWindows(UWindow* group, bool rowMajor)
+	{
+		std::vector<UWindow*> list;
+		CollectTabGroupWindows(group, group, list);
+
+		std::vector<std::pair<vec2, UWindow*>> items;
+		for (UWindow* window : list)
+			items.push_back({ AbsoluteOrigin(window), window });
+
+		std::stable_sort(items.begin(), items.end(), [=](const auto& a, const auto& b)
+		{
+			float a0 = rowMajor ? a.first.y : a.first.x;
+			float b0 = rowMajor ? b.first.y : b.first.x;
+			if (a0 != b0)
+				return a0 < b0;
+			float a1 = rowMajor ? a.first.x : a.first.y;
+			float b1 = rowMajor ? b.first.x : b.first.y;
+			return a1 < b1;
+		});
+
+		for (size_t i = 0; i < items.size(); i++)
+			list[i] = items[i].second;
+		return list;
+	}
+
+	// The tab groups of a modal window: the modal window, and each tab group that has it as its nearest modal window
+	void CollectTabGroups(UWindow* window, std::vector<UWindow*>& groups)
+	{
+		for (UWindow* child = window->firstChild(); child; child = child->nextSibling())
+		{
+			if (UObject::TryCast<UModalWindow>(child))
+				continue;
+			if (UObject::TryCast<UTabGroupWindow>(child))
+				groups.push_back(child);
+			CollectTabGroups(child, groups);
 		}
 	}
 }
-*/
+
+UObject* UWindow::GetTabGroupWindow()
+{
+	for (UWindow* cur = this; cur; cur = cur->parentOwner())
+	{
+		if (UObject::TryCast<UTabGroupWindow>(cur))
+			return cur;
+	}
+	return nullptr;
+}
+
+// A window can get the keyboard focus when it is selectable, and it and each window above it is visible and
+// sensitive. With checkModal, it must also be in the modal window that is on top.
+bool UWindow::IsTraversable(bool checkModal)
+{
+	if (!bIsSelectable())
+		return false;
+
+	UWindow* modal = nullptr;
+	for (UWindow* cur = this; cur; cur = cur->parentOwner())
+	{
+		if (!cur->bIsVisible() || !cur->bIsSensitive())
+			return false;
+
+		if (checkModal)
+		{
+			if (!modal && UObject::TryCast<UModalWindow>(cur))
+				modal = cur;
+			if (URootWindow* root = UObject::TryCast<URootWindow>(cur))
+			{
+				if (root->GetCurrentModal() != modal)
+					return false;
+			}
+		}
+	}
+	return true;
+}
+
+// Moves the focus to the next window of the tab group in a direction. With no such window, the focus goes to
+// the next tab group.
+UObject* UWindow::MoveFocus(EMove direction, bool forceWrap)
+{
+	URootWindow* root = GetRootWindow();
+	if (!root)
+		return nullptr;
+
+	UWindow* focus = root->FocusWindow();
+	if (!focus)
+	{
+		root->MoveTabGroup(direction);
+		return root->FocusWindow();
+	}
+
+	UWindow* group = UObject::Cast<UWindow>(focus->GetTabGroupWindow());
+	if (!group)
+		return root->FocusWindow();
+
+	// The windows in a clip window do not wrap around: at the end of the list the search goes the other way
+	bool wrap = forceWrap || !UObject::TryCast<UClipWindow>(group);
+	bool horizontal = direction == EMove::Left || direction == EMove::Right;
+	bool backward = direction == EMove::Left || direction == EMove::Up;
+
+	std::vector<UWindow*> list = SortedTabGroupWindows(group, horizontal);
+	int count = (int)list.size();
+	int start = 0;
+	for (int i = 0; i < count; i++)
+	{
+		if (list[i] == focus)
+			start = i;
+	}
+
+	int index = start;
+	for (int tries = count; tries > 0; tries--)
+	{
+		if (backward)
+		{
+			index--;
+			if (index < 0)
+			{
+				if (wrap)
+				{
+					index = count - 1;
+				}
+				else
+				{
+					backward = false;
+					index = start;
+				}
+			}
+		}
+		else
+		{
+			index++;
+			if (index >= count)
+			{
+				if (wrap)
+				{
+					index = 0;
+				}
+				else
+				{
+					backward = true;
+					index = start;
+				}
+			}
+		}
+
+		if (list[index]->IsTraversable(true))
+		{
+			root->SetFocusWindow(list[index]);
+			return root->FocusWindow();
+		}
+	}
+
+	root->MoveTabGroup(direction);
+	return root->FocusWindow();
+}
+
+// Moves the focus to the first window of the next or the previous tab group of the modal window on top.
+// The order of the tab groups is the place of their first window, from top to bottom and then from left to right.
+UObject* UWindow::MoveTabGroup(EMove direction)
+{
+	URootWindow* root = GetRootWindow();
+	if (!root)
+		return nullptr;
+
+	struct TabGroup
+	{
+		UWindow* window;
+		UWindow* first;
+		vec2 pos;
+	};
+
+	UWindow* modal = root->GetCurrentModal();
+	std::vector<UWindow*> groupWindows;
+	groupWindows.push_back(modal);
+	CollectTabGroups(modal, groupWindows);
+
+	std::vector<TabGroup> groups;
+	for (UWindow* window : groupWindows)
+	{
+		// The place of a group is the place of its first window that can get the focus and has a size
+		TabGroup group = { window, nullptr, vec2(0.0f) };
+		bool placed = false;
+		for (UWindow* candidate : SortedTabGroupWindows(window, true))
+		{
+			if (!candidate->IsTraversable(false))
+				continue;
+			if (!group.first)
+				group.first = candidate;
+			if (!placed && candidate->Width() > 0.0f && candidate->Height() > 0.0f)
+			{
+				group.pos = AbsoluteOrigin(candidate);
+				placed = true;
+			}
+		}
+		groups.push_back(group);
+	}
+
+	std::stable_sort(groups.begin(), groups.end(), [](const TabGroup& a, const TabGroup& b)
+	{
+		if (a.pos.y != b.pos.y)
+			return a.pos.y < b.pos.y;
+		return a.pos.x < b.pos.x;
+	});
+
+	int count = (int)groups.size();
+	bool backward = direction == EMove::Up || direction == EMove::Left;
+
+	// Start at the group after the group of the focus window, or at the first group
+	int start = 0;
+	UWindow* focus = root->FocusWindow();
+	if (focus && focus->GetModalWindow() == modal)
+	{
+		UObject* focusGroup = focus->GetTabGroupWindow();
+		for (int i = 0; i < count; i++)
+		{
+			if (groups[i].window == focusGroup)
+			{
+				start = backward ? i - 1 : i + 1;
+				if (start < 0)
+					start = count - 1;
+				if (start >= count)
+					start = 0;
+				break;
+			}
+		}
+	}
+
+	int index = start;
+	do
+	{
+		if (groups[index].first)
+		{
+			root->SetFocusWindow(groups[index].first);
+			break;
+		}
+
+		index += backward ? -1 : 1;
+		if (index < 0)
+			index = count - 1;
+		if (index >= count)
+			index = 0;
+	} while (index != start);
+
+	return root->FocusWindow();
+}
 
 UObject* UWindow::MoveFocusDown()
 {
-	//MoveFocus(EMove::Down);
-	return nullptr;
+	return MoveFocus(EMove::Down, false);
 }
 
 UObject* UWindow::MoveFocusLeft()
 {
-	//MoveFocus(EMove::Left);
-	return nullptr;
+	return MoveFocus(EMove::Left, false);
 }
 
 UObject* UWindow::MoveFocusRight()
 {
-	//MoveFocus(EMove::Right);
-	return nullptr;
+	return MoveFocus(EMove::Right, false);
 }
 
 UObject* UWindow::MoveFocusUp()
 {
-	//MoveFocus(EMove::Up);
-	return nullptr;
+	return MoveFocus(EMove::Up, false);
 }
-
-/*UObject* UWindow::MoveTabGroup(EMove dir)
-{
-	// tbd
-}*/
 
 UObject* UWindow::MoveTabGroupNext()
 {
-	LogUnimplemented("Window.MoveTabGroupNext");
-	return nullptr;
+	return MoveTabGroup(EMove::Down);
 }
 
 UObject* UWindow::MoveTabGroupPrev()
 {
-	LogUnimplemented("Window.MoveTabGroupPrev");
-	return nullptr;
+	return MoveTabGroup(EMove::Up);
 }
 
 UObject* UWindow::NewChild(UObject* NewClass, std::optional<bool> bShow)
