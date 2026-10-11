@@ -311,25 +311,21 @@ bool TouchingActorsIterator::Next()
 
 TraceActorsIterator::TraceActorsIterator(UActor* SelfActor, UObject* BaseClass, UObject** Actor, vec3* HitLoc, vec3* HitNorm, const vec3& End, const vec3& Start, const vec3& Extent) : SelfActor(SelfActor), BaseClass(BaseClass), Actor(Actor), HitLoc(HitLoc), HitNorm(HitNorm), End(End), Start(Start), Extent(Extent)
 {
-	TraceFlags flags;
-	flags.movers = true;
-	flags.world = true;
-	flags.pawns = true;
-	flags.others = true;
-	flags.onlyProjectiles = false; // Should this be true or false?
-
-	// Why is this tracing backwards? Is that correct?
-	vec3 traceStart = End;
-	vec3 traceEnd = Start;
-
-	for (auto& hit : SelfActor->XLevel()->Collision.Trace(traceStart, traceEnd, Extent.z, Extent.x, flags.traceActors(), flags.traceWorld(), false))
+	// As AActor::execTraceActors, which calls ULevel::MultiLineCheck(End, Start, ...): the line goes from Start to End,
+	// and the hits are in the order of their distance from Start. A hit of the world gives the level info as the actor,
+	// and the actors behind that hit are not in the list.
+	NameString baseClassName = BaseClass ? BaseClass->Name : NameString("Actor");
+	for (auto& hit : SelfActor->XLevel()->Collision.Trace(Start, End, Extent.z, Extent.x, true, true, false))
 	{
-		if (hit.Actor && hit.Actor != SelfActor && hit.Actor->IsA(BaseClass->Name))
+		bool worldHit = !hit.Actor;
+		UActor* actor = worldHit ? SelfActor->Level() : hit.Actor;
+		if (actor && actor != SelfActor && actor->IsA(baseClassName))
 		{
-			vec3 hitNormal = hit.Normal;
-			vec3 hitLocation = traceStart + (traceEnd - traceStart) * hit.Fraction;
-			tracedActors.push_back({ hit.Actor, *HitLoc, *HitNorm });
+			vec3 hitLocation = Start + (End - Start) * hit.Fraction;
+			tracedActors.push_back({ actor, hitLocation, hit.Normal });
 		}
+		if (worldHit)
+			break;
 	}
 
 	iterator = tracedActors.begin();
