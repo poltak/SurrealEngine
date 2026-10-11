@@ -372,7 +372,7 @@ public:
 
 	UActor* Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std::optional<NameString> SpawnTag, std::optional<vec3> SpawnLocation, std::optional<Rotator> SpawnRotation, bool noCollisionFail = false);
 	bool Destroy();
-	void InitBase();
+	void InitBase(bool levelStart = false);
 
 	void SetBase(UActor* newBase, bool sendBaseChangeEvent);
 	// Re-registers this actor into ActorBase()->BasedActors without firing Attach/BaseChange

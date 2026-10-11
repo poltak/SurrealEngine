@@ -99,12 +99,22 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 
 		actor->InitActorZone();
 
-		CallEvent(actor, EventName::PostBeginPlay);
-		CallEvent(actor, EventName::SetInitialState);
 		if (engine->LaunchInfo.IsDeusEx())
+		{
+			// As ULevel::SpawnActor in the Engine.dll of Deus Ex: a new actor was last drawn 10 seconds before the
+			// level time 0, and it gets its base before the last begin event.
+			actor->LastRenderTime() = -10.0f;
+			CallEvent(actor, EventName::PostBeginPlay);
+			CallEvent(actor, EventName::SetInitialState);
+			actor->InitBase();
 			CallEvent(actor, "PostPostBeginPlay");
-
-		actor->InitBase();
+		}
+		else
+		{
+			CallEvent(actor, EventName::PostBeginPlay);
+			CallEvent(actor, EventName::SetInitialState);
+			actor->InitBase();
+		}
 
 		if (engine->LaunchInfo.ue1Version >= 400)
 		{

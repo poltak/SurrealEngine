@@ -11,8 +11,38 @@
 #include "Engine.h"
 #include "VM/ScriptCall.h"
 
-void UActor::InitBase()
+void UActor::InitBase(bool levelStart)
 {
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// As UGameEngine::LoadMap and ULevel::SpawnActor in the Engine.dll of Deus Ex
+		if (levelStart && !AttachTag().IsNone())
+		{
+			// The first actor that has the attach tag as its tag becomes the base
+			NameString attachTag = AttachTag();
+			for (UActor* levelActor : XLevel()->Actors)
+			{
+				if (levelActor && levelActor->Tag() == attachTag)
+				{
+					SetBase(levelActor, false);
+					break;
+				}
+			}
+			return;
+		}
+
+		bool isDecorationInventoryOrPawn = UObject::TryCast<UDecoration>(this) || UObject::TryCast<UInventory>(this) || UObject::TryCast<UPawn>(this);
+		if (!ActorBase() && bCollideWorld() && isDecorationInventoryOrPawn && (Physics() == PHYS_None || Physics() == PHYS_Rotating))
+		{
+			FindBase();
+
+			// An actor that is on the level geometry when the level starts has no base
+			if (levelStart && ActorBase() == Level())
+				SetBase(nullptr, false);
+		}
+		return;
+	}
+
 	if (engine->LaunchInfo.ue1Version > 219)
 	{
 		NameString attachTag = AttachTag();

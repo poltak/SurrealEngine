@@ -828,24 +828,43 @@ void Engine::LoadMap(const UnrealURL& url, const std::map<std::string, std::stri
 		// Only call PreBegin/Begin/PostBegin/SetInitialState for loaded objects. Spawned objects are added at the end of the Actors array.
 		size_t loadActorCount = Level->Actors.size();
 
+		// Deus Ex: as UGameEngine::LoadMap in the Engine.dll, each loop goes to the end of the actor list at that time.
+		// An actor that a script makes during the start gets the events of the loops that follow a second time, and
+		// the scripts are written for this. A body that is in a map makes its things in PostBeginPlay and gives them
+		// the first state Idle2. The things go to that state in the SetInitialState loop and stay hidden.
+		bool allActors = LaunchInfo.IsDeusEx();
+		auto actorCount = [&]() { return allActors ? Level->Actors.size() : loadActorCount; };
+
 		LevelInfo->bStartup() = true;
 		CallEvent(GameInfo, EventName::InitGame, { ExpressionValue::StringValue(options), ExpressionValue::Variable(&error, stringProp) });
 		if (!error.empty())
 			Exception::Throw("InitGame failed: " + error);
 
 		// Note: the events may spawn actors. We can't use iterators here.
-		for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::PreBeginPlay); }
-		for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::BeginPlay); }
-		for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::PostBeginPlay); }
-		for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::SetInitialState); }
+		for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::PreBeginPlay); }
+		for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::BeginPlay); }
 
-		if (engine->LaunchInfo.IsDeusEx())
+		if (LaunchInfo.IsDeusEx())
 		{
-			for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], "PostPostBeginPlay"); }
+			// A map file has the render times of the editor session that saved it. The original sets all of them to
+			// 10 seconds before the level time 0, so no actor counts as drawn a short time ago.
+			for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) Level->Actors[i]->LastRenderTime() = -10.0f; }
 		}
 
-		for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) Level->Actors[i]->InitBase(); }
-		LevelInfo->bStartup() = false;
+		for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::PostBeginPlay); }
+		for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], EventName::SetInitialState); }
+
+		if (LaunchInfo.IsDeusEx())
+		{
+			for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) Level->Actors[i]->InitBase(true); }
+			LevelInfo->bStartup() = false;
+			for (size_t i = 0; i < actorCount(); i++) { if (Level->Actors[i]) CallEvent(Level->Actors[i], "PostPostBeginPlay"); }
+		}
+		else
+		{
+			for (size_t i = 0; i < loadActorCount; i++) { if (Level->Actors[i]) Level->Actors[i]->InitBase(); }
+			LevelInfo->bStartup() = false;
+		}
 	}
 
 	if (LevelInfo->Game())
