@@ -5,6 +5,7 @@
 
 class UZoneInfo;
 class UActor;
+class UPawn;
 struct IntObject;
 
 class Iterator
@@ -123,6 +124,19 @@ public:
 	int cursor = 0;
 	size_t total = 0;
 	size_t visited = 0;
+};
+
+// Deus Ex: the navigation points that a pawn can go to first, nearest first
+class ReachablePathnodesIterator : public Iterator
+{
+public:
+	ReachablePathnodesIterator(UPawn* pawn, UObject* baseClass, UObject** navPoint, UActor* fromPoint, float* distance, bool usePrunedPaths);
+	bool Next() override;
+
+	UObject** NavPoint = nullptr;
+	float* Distance = nullptr;
+	Array<std::pair<UObject*, float>> Items;
+	size_t Index = 0;
 };
 
 class IntDescIterator : public Iterator

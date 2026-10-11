@@ -472,6 +472,7 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/Packages/Core/Properties/UStrProperty.h
 	SurrealEngine/Packages/Core/Properties/UStructProperty.cpp
 	SurrealEngine/Packages/Core/Properties/UStructProperty.h
+	SurrealEngine/Packages/DeusEx/AIMovement.cpp
 	SurrealEngine/Packages/DeusEx/AIEventManager.cpp
 	SurrealEngine/Packages/DeusEx/AIEventManager.h
 	SurrealEngine/Packages/DeusEx/AIPerception.cpp

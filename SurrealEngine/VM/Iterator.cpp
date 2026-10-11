@@ -9,6 +9,8 @@
 #include "Packages/Engine/Resources/Level/UModel.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "Packages/Engine/Actors/UActor.h"
+#include "Packages/Engine/Actors/Pawn/UPawn.h"
+#include "Packages/Engine/Actors/NavigationPoint/UNavigationPoint.h"
 
 #include <algorithm>
 
@@ -528,5 +530,29 @@ bool TraceVisibleActorsIterator::Next()
 	*OutActor = hit.Actor;
 	*HitLoc = hit.HitLoc;
 	*HitNorm = hit.HitNorm;
+	return true;
+}
+
+/////////////////////////////////////////////////////////////////////////////
+
+ReachablePathnodesIterator::ReachablePathnodesIterator(UPawn* pawn, UObject* baseClass, UObject** navPoint, UActor* fromPoint, float* distance, bool usePrunedPaths) : NavPoint(navPoint), Distance(distance)
+{
+	for (const UPawn::AINavInfo& info : pawn->AIGetPathnodeList(32, fromPoint, usePrunedPaths, true))
+	{
+		if (!baseClass || info.NavPoint->IsA(baseClass->Name))
+			Items.push_back({ info.NavPoint, info.Distance });
+	}
+}
+
+bool ReachablePathnodesIterator::Next()
+{
+	if (Index >= Items.size())
+	{
+		*NavPoint = nullptr;
+		return false;
+	}
+	*NavPoint = Items[Index].first;
+	*Distance = Items[Index].second;
+	Index++;
 	return true;
 }

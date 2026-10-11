@@ -450,6 +450,7 @@ public:
 	bool IsBasedOn(UActor* other);
 	bool IsOwnedBy(UActor* owner);
 	bool IsOverlapping(UActor* other);
+	Rotator RandomBiasedRotation(int centralYaw, float yawDistribution, int centralPitch, float pitchDistribution);
 
 	void Touch(UActor* actor);
 	void UnTouch(UActor* actor);

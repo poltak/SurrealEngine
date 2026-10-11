@@ -3,6 +3,7 @@
 #include "NPawn.h"
 #include "VM/NativeFunc.h"
 #include "VM/Frame.h"
+#include "VM/Iterator.h"
 #include "Packages/Engine/Actors/Pawn/UPawn.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "Packages/Engine/Actors/NavigationPoint/UNavigationPoint.h"
@@ -311,19 +312,17 @@ void NPawn::AICanSmell(UObject* Self, UObject* Other, std::optional<float> Smell
 
 void NPawn::AIDirectionReachable(UObject* Self, const vec3& Focus, int Yaw, int Pitch, float minDist, float maxDist, vec3& bestDest, BitfieldBool& ReturnValue)
 {
-	LogUnimplemented("Pawn.AIDirectionReachable");
-	ReturnValue = false;
+	ReturnValue = UObject::Cast<UPawn>(Self)->AIDirectionReachable(Focus, Yaw, Pitch, minDist, maxDist, bestDest);
 }
 
 void NPawn::AIPickRandomDestination_Deus(UObject* Self, float minDist, float maxDist, int centralYaw, float yawDistribution, int centralPitch, float pitchDistribution, int tries, float multiplier, vec3& dest, BitfieldBool& ReturnValue)
 {
-	LogUnimplemented("Pawn.AIPickRandomDestination_Deus");
-	ReturnValue = false;
+	ReturnValue = UObject::Cast<UPawn>(Self)->AIPickRandomDestination(minDist, maxDist, centralYaw, yawDistribution, centralPitch, pitchDistribution, tries, multiplier, dest);
 }
 
 void NPawn::ComputePathnodeDistances(UObject* Self, std::optional<UObject*> startActor)
 {
-	LogUnimplemented("Pawn.ComputePathnodeDistances");
+	UObject::Cast<UPawn>(Self)->AIComputePathnodeDistances(startActor ? UObject::TryCast<UActor>(*startActor) : nullptr);
 }
 
 void NPawn::LineOfSightTo_Deus(UObject* Self, UObject* Other, std::optional<bool> bIgnoreDistance, BitfieldBool& ReturnValue)
@@ -335,7 +334,7 @@ void NPawn::LineOfSightTo_Deus(UObject* Self, UObject* Other, std::optional<bool
 
 void NPawn::ReachablePathnodes(UObject* Self, UObject* BaseClass, UObject*& NavPoint, UObject* FromPoint, float& distance, std::optional<bool> bUsePrunedPaths)
 {
-	LogUnimplemented("Pawn.ReachablePathnodes");
+	Frame::CreatedIterator = std::make_unique<ReachablePathnodesIterator>(UObject::Cast<UPawn>(Self), BaseClass, &NavPoint, UObject::TryCast<UActor>(FromPoint), &distance, bUsePrunedPaths ? *bUsePrunedPaths : false);
 }
 
 void NPawn::StrafeFacing_Deus(UObject* Self, const vec3& NewDestination, UObject* NewTarget, std::optional<float> speed)
