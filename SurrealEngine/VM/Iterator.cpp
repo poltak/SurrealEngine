@@ -174,25 +174,44 @@ bool ChildActorsIterator::Next()
 
 /////////////////////////////////////////////////////////////////////////////
 
+// Deus Ex. Follows AActor::execCycleActors in Engine.dll (build 1112fm):
+//
+// The index is a cursor into the actor list of the level that the script keeps between calls. The iterator
+// starts at the cursor, goes around the end of the list, and visits each list entry one time at most. After
+// each actor that it gives to the script, the cursor is the entry after that actor. So a script that leaves
+// the loop early continues with the next actors in its next call, and it sees a smaller index when the
+// cursor went around the end of the list.
 CycleActorsIterator::CycleActorsIterator(UObject* BaseClass, UObject** Actor, int* outIndex)  : BaseClass(BaseClass), Actor(Actor), outIndex(outIndex)
-{  
-}  
+{
+	total = engine->Level->Actors.size();
+	cursor = outIndex ? *outIndex : 0;
+	if (cursor < 0 || (size_t)cursor >= total)
+		cursor = 0;
+}
 
-bool CycleActorsIterator::Next()  
+bool CycleActorsIterator::Next()
 {
 	auto& actors = engine->Level->Actors;
-	while (actorsIndex < actors.size())
+	total = std::min(total, actors.size());
+
+	UActor* found = nullptr;
+	while (visited < total)
 	{
-		UActor* levelActor = actors[actorsIndex++];
-		if (levelActor && levelActor->IsA(BaseClass->Name))
+		if ((size_t)cursor >= actors.size())
+			cursor = 0;
+		UActor* levelActor = actors[cursor++];
+		visited++;
+		if (levelActor && (!BaseClass || levelActor->IsA(BaseClass->Name)))
 		{
-			*Actor = levelActor;
-			if (outIndex) *outIndex = currentIndex;
-			++currentIndex;
-			return true;
+			found = levelActor;
+			break;
 		}
 	}
-	return false;
+
+	*Actor = found;
+	if (outIndex)
+		*outIndex = cursor;
+	return found != nullptr;
 }
 
 /////////////////////////////////////////////////////////////////////////////

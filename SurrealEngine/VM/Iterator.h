@@ -116,12 +116,13 @@ class CycleActorsIterator : public Iterator
 public:
 	CycleActorsIterator(UObject* BaseClass, UObject** Actor, int* outIndex);
 	bool Next() override;
-private:
+
 	UObject* BaseClass = nullptr;
 	UObject** Actor = nullptr;
 	int* outIndex = nullptr;
-	int currentIndex = 0;
-	size_t actorsIndex = 0;
+	int cursor = 0;
+	size_t total = 0;
+	size_t visited = 0;
 };
 
 class IntDescIterator : public Iterator
