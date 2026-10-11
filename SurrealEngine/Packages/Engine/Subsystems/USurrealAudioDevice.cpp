@@ -43,7 +43,7 @@ std::string USurrealAudioDevice::GetPropertyAsString(const NameString& propertyN
 		return IniPropertyConverter<int>::ToString(Latency);
 	else if (propertyName == "OutputRate")
 		return IniPropertyConverter<AudioFrequency>::ToString(OutputRate);
-	else if (propertyName == "Channels")
+	else if (propertyName == "Channels" || propertyName == "EffectsChannels") // EffectsChannels is the name in the Galaxy audio of Deus Ex
 		return IniPropertyConverter<int>::ToString(Channels);
 	else if (propertyName == "MusicVolume")
 		return IniPropertyConverter<uint8_t>::ToString(MusicVolume);
@@ -86,6 +86,13 @@ void USurrealAudioDevice::SetPropertyFromString(const NameString& propertyName, 
 		OutputRate = IniPropertyConverter<AudioFrequency>::FromString(value);
 	else if (propertyName == "Channels")
 		Channels = IniPropertyConverter<int>::FromString(value);
+	else if (propertyName == "EffectsChannels")
+	{
+		// The name in the Galaxy audio of Deus Ex. The engine uses the new count at the next start.
+		Channels = IniPropertyConverter<int>::FromString(value);
+		engine->packages->SetIniValue("System", Class, "Channels", value);
+		return;
+	}
 	else if (propertyName == "MusicVolume")
 		MusicVolume = IniPropertyConverter<uint8_t>::FromString(value);
 	else if (propertyName == "SoundVolume")
@@ -119,6 +126,8 @@ void USurrealAudioDevice::LoadProperties(const NameString& from)
 	ReverseStereo = IniPropertyConverter<bool>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "ReverseStereo", ReverseStereo);
 	Latency = IniPropertyConverter<int>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "Latency", Latency);
 	OutputRate = IniPropertyConverter<AudioFrequency>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "OutputRate", OutputRate);
+	// The Galaxy audio section of Deus Ex has EffectsChannels and no Channels
+	Channels = IniPropertyConverter<int>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "EffectsChannels", Channels);
 	Channels = IniPropertyConverter<int>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "Channels", Channels);
 	MusicVolume = IniPropertyConverter<uint8_t>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "MusicVolume", MusicVolume);
 	SoundVolume = IniPropertyConverter<uint8_t>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "SoundVolume", SoundVolume);
