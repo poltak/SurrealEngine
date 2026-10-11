@@ -104,6 +104,7 @@ void RenderSubsystem::PostRender()
 		CallEvent(engine->viewport->Actor(), EventName::PostRender, { ExpressionValue::ObjectValue(engine->canvas) });
 	CallEvent(engine->console, EventName::PostRender, { ExpressionValue::ObjectValue(engine->canvas) });
 	DrawTimedemoStats();
+	Harness::Get().DrawOverlay(engine);
 	
 	if (ShowCollisionDebug)
 		DrawCollisionDebug();

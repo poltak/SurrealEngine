@@ -1,6 +1,8 @@
 
 #include "Precomp.h"
 #include "Harness.h"
+#include "Render/RenderSubsystem.h"
+#include "Packages/Engine/Resources/Textures/UTexture.h"
 #include <thread>
 #include <time.h>
 #include <filesystem>
@@ -154,6 +156,26 @@ void Harness::SettleWindowSize(Engine* engine)
 		std::this_thread::sleep_for(std::chrono::milliseconds(10));
 	}
 	LogMessage(waitForFile ? "Harness: no file " + waitFile : "Harness: the window did not keep the size " + winSize);
+}
+
+void Harness::DrawOverlay(Engine* engine)
+{
+	if (shownTextures.empty() || !engine->render)
+		return;
+
+	// Cells of 76 canvas units, eight in a row, on a black background
+	const float cell = 80.0f, size = 76.0f;
+	UTexture* black = engine->DefaultTexture;
+	int index = 0;
+	for (UTexture* tex : shownTextures)
+	{
+		float x = 2.0f + (index % 8) * cell;
+		float y = 2.0f + (index / 8) * cell;
+		if (black)
+			engine->render->DrawTile(black, x, y, size, size, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, vec4(0.0f, 0.0f, 0.0f, 1.0f), vec4(0.0f), 0);
+		engine->render->DrawTile(tex, x, y, size, size, 0.0f, 0.0f, (float)tex->USize(), (float)tex->VSize(), 1.0f, vec4(1.0f), vec4(0.0f), 0);
+		index++;
+	}
 }
 
 void Harness::LogFatal(const std::string& text)
@@ -572,6 +594,36 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		perfScriptCalls = Frame::ScriptCallCount;
 		perfNativeCalls = Frame::NativeCallCount;
 		perfStatements = Frame::StatementCount;
+	}
+	else if (e.Command == "showtex")
+	{
+		// showtex PKG.NAME ...: find each texture in its package. A fire texture then shows how its sparks look.
+		shownTextures.clear();
+		std::istringstream names(e.Args);
+		std::string fullName;
+		while (names >> fullName)
+		{
+			size_t dot = fullName.find('.');
+			if (dot == std::string::npos)
+				continue;
+			UTexture* tex = nullptr;
+			try
+			{
+				Package* package = engine->packages->GetPackage(fullName.substr(0, dot));
+				for (const char* className : { "FireTexture", "Texture", "WaveTexture", "WetTexture", "IceTexture", "ScriptedTexture" })
+				{
+					if (!tex && package)
+						tex = UObject::TryCast<UTexture>(package->GetUObject(className, fullName.substr(dot + 1)));
+				}
+			}
+			catch (const std::exception&)
+			{
+			}
+			if (tex)
+				shownTextures.push_back(tex);
+			else
+				LogMessage("Harness: showtex: no texture " + fullName);
+		}
 	}
 	else if (e.Command == "tracetex")
 	{

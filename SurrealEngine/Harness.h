@@ -38,6 +38,7 @@ class UActor;
 //   teleport X Y Z [YAW]            move the player (YAW in Unreal units, 65536 = full turn)
 //   setprop CLASS PROPERTY VALUE    set a property on each live actor of that class
 //   dump CLASS [RADIUS] [PROPS]     log state and location of each actor of that class, with the listed properties (a,b,c)
+//   showtex PKG.NAME [PKG.NAME ...] draw these textures in a grid over the picture in each frame (no names: stop)
 //   log TEXT | quit
 class Harness
 {
@@ -54,6 +55,9 @@ public:
 	void SettleWindowSize(Engine* engine);
 	void Tick(Engine* engine);
 	void AfterFrame(Engine* engine, RenderDevice* device);
+
+	// Draw the textures of the "showtex" command. The render code calls this at the end of a frame.
+	void DrawOverlay(Engine* engine);
 
 	// True for a window event that comes from the real keyboard or mouse while a script drives the game.
 	// The engine drops such events, so a person who works on the same computer cannot change a test.
@@ -94,6 +98,7 @@ private:
 	std::vector<std::string> pendingShots;
 	UActor* aimTarget = nullptr;
 	double aimUntil = 0.0;
+	std::vector<class UTexture*> shownTextures;
 	std::string winSize;
 	std::string waitFile;
 	double nextWinSizeCheck = 1.5; // not in the first frames: the window manager can resize the new window at that time
