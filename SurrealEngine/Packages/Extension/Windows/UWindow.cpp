@@ -989,6 +989,10 @@ UObject* UWindow::MoveTabGroupPrev()
 
 UObject* UWindow::NewChild(UObject* NewClass, std::optional<bool> bShow)
 {
+	// As XWindow::CreateNewWindow: no class gives no window
+	if (!UObject::TryCast<UClass>(NewClass))
+		return nullptr;
+
 	bool show = !bShow || *bShow;
 	//LogMessage(GetUClassFullName(this).ToString() + ": NewChild(" + NewClass->Name.ToString() + ", " + (show ? "true" : "false") + ")");
 	auto child = UObject::Cast<UWindow>(engine->packages->GetTransientPackage()->NewObject(NewClass->Name.ToString(), UObject::Cast<UClass>(NewClass), ObjectFlags::Transient));

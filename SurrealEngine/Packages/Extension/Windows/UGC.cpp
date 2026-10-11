@@ -648,6 +648,10 @@ void UGC::SetVerticalAlignment(uint8_t newVAlign)
 
 void UGC::DrawTile(UTexture* tex, const Rectf& dest, const Rectf& src, const Color& c, uint32_t flags)
 {
+	// A script can draw with no texture. Nothing shows then.
+	if (!tex)
+		return;
+
 	vec4 color(c.R / 255.0f, c.G / 255.0f, c.B / 255.0f, 1.0f/*c.A / 255.0f*/);
 	float Z = 1.0f;
 	vec4 fog(0.0f);
@@ -866,6 +870,8 @@ vec2 UGC::GetTextSize(UFont* font, const std::string& text)
 {
 	float x = 0.0f;
 	float y = 0.0f;
+	if (!font)
+		return { x, y };
 	for (char c : text)
 	{
 		FontGlyph glyph = font->GetGlyph(c);
