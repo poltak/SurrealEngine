@@ -113,7 +113,7 @@ public:
 
 	UConversationList* GetDeusExMission();
 
-	void UpdateAudio();
+	void UpdateAudio(float elapsed);
 
 	void OpenWindow();
 	void CloseWindow();

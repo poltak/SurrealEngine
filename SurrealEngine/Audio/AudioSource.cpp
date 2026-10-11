@@ -1,5 +1,6 @@
 
 #include "Precomp.h"
+#include <atomic>
 #include "AudioSource.h"
 #include "Math/vec.h"
 #include "resample/CDSPResampler.h"
@@ -449,6 +450,7 @@ public:
 		// the combat section starts at the order of a different section.
 		if (section > 0 && section < module->get_num_orders())
 			module->set_position_order_row(section, 0);
+		currentOrder = module->get_current_order();
 
 		module->set_repeat_count(-1);
 	}
@@ -483,15 +485,19 @@ public:
 		if (!module)
 			return 0;
 
-		return module->read_interleaved_stereo(GetFrequency(), samples / GetChannels(), output);
+		size_t count = module->read_interleaved_stereo(GetFrequency(), samples / GetChannels(), output);
+		currentOrder = module->get_current_order();
+		return count;
 	}
 
+	// The audio thread reads the song, and the game thread asks for the position
 	int GetOrderPosition() override
 	{
-		return module ? module->get_current_order() : -1;
+		return currentOrder;
 	}
 
 	openmpt::module* module;
+	std::atomic<int> currentOrder{ 0 };
 };
 
 std::unique_ptr<AudioSource> AudioSource::CreateMp3(Array<uint8_t> filedata)

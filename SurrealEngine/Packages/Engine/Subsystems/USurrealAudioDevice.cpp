@@ -171,6 +171,7 @@ void USurrealAudioDevice::InitDevice()
 
 void USurrealAudioDevice::ShutdownDevice()
 {
+	MusicSource = nullptr;
 	m_Device.reset();
 	LogMessage("Audio device has been shut down");
 }
@@ -193,14 +194,15 @@ void USurrealAudioDevice::SetViewport(UViewport* InViewport)
 	}
 }
 
-void USurrealAudioDevice::Update(const mat4& listener)
+void USurrealAudioDevice::Update(const mat4& listener, float elapsed)
 {
 	StartAmbience();
 	UpdateAmbience();
 	UpdateSounds(listener);
-	UpdateMusic();
+	UpdateMusic(elapsed);
 
-	m_Device->SetMusicVolume(MusicVolume / 255.0f);
+	// As UGalaxyAudioSubsystem::SetVolumes: the fade of a music change goes into the music volume
+	m_Device->SetMusicVolume(MusicVolume / 255.0f * std::max(MusicFade, 0.0f));
 	// The sound volume and the speech volume of the settings go to each sound in UpdateSounds, so a change is heard at once
 	m_Device->SetSoundVolume(0.5f);
 	m_Device->Update();
@@ -362,44 +364,85 @@ void USurrealAudioDevice::UpdateSounds(const mat4& listener)
 	}
 }
 
-void USurrealAudioDevice::UpdateMusic()
+// The change of the music follows UGalaxyAudioSubsystem::Update in Galaxy.dll: the old music fades out first, at a
+// speed that the transition type of the player sets, and then the new song or the new section starts at full volume.
+void USurrealAudioDevice::UpdateMusic(float elapsed)
 {
-	if (m_Viewport && m_Viewport->Actor() && m_Viewport->Actor()->Transition() != MTRAN_None)
+	if (!m_Viewport || !m_Viewport->Actor())
+		return;
+
+	if (m_Viewport->Actor()->Transition() == MTRAN_None)
 	{
-		// To do: this needs to fade out the old song before switching
+		// The song section of the player follows the place of the music. The script of Deus Ex saves this place
+		// when a fight or a conversation starts, and the calm music goes on from there after it.
+		int order = MusicSource ? MusicSource->GetOrderPosition() : -1;
+		if (order >= 0 && order < 255)
+			m_Viewport->Actor()->SongSection() = (uint8_t)order;
+		return;
+	}
 
-		if (CurrentSong)
+	if (CurrentSong)
+	{
+		// A fade takes one second, a fast fade a third of a second and a slow fade five seconds. The music then
+		// stays silent for a time that goes with the Latency setting of Galaxy (40 ms), so the last sound of the
+		// old music is out of the buffer before the change.
+		const float latency = 40.0f;
+		bool done = true;
+		if (CurrentSection != 255)
 		{
-			m_Device->PlayMusic({});
-			CurrentSong = nullptr;
-		}
-
-		CurrentSong = m_Viewport->Actor()->Song();
-		CurrentSection = m_Viewport->Actor()->SongSection();
-
-		if (CurrentSong && UseDigitalMusic)
-		{
-			int section = CurrentSection != 255 ? CurrentSection : 0;
-
-			std::unique_ptr<AudioSource> source;
-			if (CurrentSong->Format == "mp3" || CurrentSong->Format == "mp2")
-				source = AudioSource::CreateMp3(CurrentSong->Data);
-			else if (CurrentSong->Format == "ogg" || CurrentSong->Format == "event") // Some ogg files in Unreal 227 have event as format for some reason
-				source = AudioSource::CreateOgg(CurrentSong->Data, true);
-			else if (CurrentSong->Format == "wav")
-				source = AudioSource::CreateWav(CurrentSong->Data);
-			else
-				source = AudioSource::CreateMod(CurrentSong->Data, true, section);
-
-			if (source)
+			switch (m_Viewport->Actor()->Transition())
 			{
-				LogMessage("Music: " + CurrentSong->Name.ToString() + " section " + std::to_string(section) + " starts at order " + std::to_string(source->GetOrderPosition()));
-				m_Device->PlayMusic(std::move(source));
+			case MTRAN_Fade:
+				MusicFade -= elapsed;
+				done = MusicFade < latency * -0.002f;
+				break;
+			case MTRAN_SlowFade:
+				MusicFade -= elapsed * 0.2f;
+				done = MusicFade < latency * -0.0004f;
+				break;
+			case MTRAN_FastFade:
+				MusicFade -= elapsed * 3.0f;
+				done = MusicFade < latency * -0.006f;
+				break;
+			default:
+				break;
 			}
 		}
+		if (!done)
+			return;
 
-		m_Viewport->Actor()->Transition() = MTRAN_None;
+		MusicSource = nullptr;
+		m_Device->PlayMusic({});
+		CurrentSong = nullptr;
 	}
+
+	MusicFade = 1.0f;
+	CurrentSong = m_Viewport->Actor()->Song();
+	CurrentSection = m_Viewport->Actor()->SongSection();
+
+	if (CurrentSong && UseDigitalMusic)
+	{
+		int section = CurrentSection != 255 ? CurrentSection : 0;
+
+		std::unique_ptr<AudioSource> source;
+		if (CurrentSong->Format == "mp3" || CurrentSong->Format == "mp2")
+			source = AudioSource::CreateMp3(CurrentSong->Data);
+		else if (CurrentSong->Format == "ogg" || CurrentSong->Format == "event") // Some ogg files in Unreal 227 have event as format for some reason
+			source = AudioSource::CreateOgg(CurrentSong->Data, true);
+		else if (CurrentSong->Format == "wav")
+			source = AudioSource::CreateWav(CurrentSong->Data);
+		else
+			source = AudioSource::CreateMod(CurrentSong->Data, true, section);
+
+		if (source)
+		{
+			LogMessage("Music: " + CurrentSong->Name.ToString() + " section " + std::to_string(section) + " starts at order " + std::to_string(source->GetOrderPosition()));
+			MusicSource = source.get();
+			m_Device->PlayMusic(std::move(source));
+		}
+	}
+
+	m_Viewport->Actor()->Transition() = MTRAN_None;
 }
 
 bool USurrealAudioDevice::PlaySound(UActor* Actor, int Id, USound* Sound, vec3 Location, float Volume, float Radius, float Pitch, bool isTalk)
@@ -518,7 +561,12 @@ void USurrealAudioDevice::StopSounds()
 	for (size_t i = 0; i < PlayingSounds.size(); i++)
 		StopSound(i);
 
+	// No music plays after this, so the next song starts with no fade of an old one
+	MusicSource = nullptr;
 	m_Device->PlayMusic(nullptr);
+	CurrentSong = nullptr;
+	CurrentSection = 255;
+	MusicFade = 1.0f;
 	m_Viewport = nullptr;
 }
 

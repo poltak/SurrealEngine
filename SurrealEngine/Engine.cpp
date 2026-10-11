@@ -264,7 +264,7 @@ void Engine::Run()
 				});
 		}
 
-		UpdateAudio();
+		UpdateAudio(realTimeElapsed);
 
 		viewport->SetViewportRect(0, 0, engine->window->GetPixelWidth(), engine->window->GetPixelHeight());
 		render->DrawGame(levelElapsed);
@@ -576,13 +576,13 @@ UConversationList* Engine::GetDeusExMission()
 	return nullptr;
 }
 
-void Engine::UpdateAudio()
+void Engine::UpdateAudio(float elapsed)
 {
 	mat4 translate = mat4::translate(vec3(0.0f) - CameraLocation);
 	mat4 listener = Coords::ViewToAudioDev().ToMatrix() * Coords::Rotation(CameraRotation).ToMatrix() * translate;
 
 	audiodev->SetViewport(viewport);
-	audiodev->Update(listener);
+	audiodev->Update(listener, elapsed);
 }
 
 void Engine::ClientTravel(const std::string& newURL, ETravelType travelType, bool transferItems)

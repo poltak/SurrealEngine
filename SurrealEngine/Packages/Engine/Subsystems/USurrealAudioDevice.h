@@ -61,7 +61,7 @@ public:
 	void SetViewport(UViewport* InViewport);
 	UViewport* GetViewport() { return m_Viewport; }
 
-	void Update(const mat4& listener);
+	void Update(const mat4& listener, float elapsed);
 
 	bool PlaySound(UActor* Actor, int Id, USound* Sound, vec3 Location, float Volume, float Radius, float Pitch, bool isTalk);
 	void StopSound(UActor* Actor, int Id);
@@ -80,7 +80,7 @@ private:
 
 	void UpdateLipSync(PlayingSound& Playing);
 	void ClearLipSync(PlayingSound& Playing);
-	void UpdateMusic();
+	void UpdateMusic(float elapsed);
 	void StopSound(size_t index);
 
 	static float SoundPriority(UViewport* Viewport, vec3 Location, float Volume, float Radius);
@@ -91,5 +91,8 @@ private:
 	Array<PlayingSound> PlayingSounds;
 	UMusic* CurrentSong = nullptr;
 	int CurrentSection = 255;
+	float MusicFade = 1.0f;
+	// The music that the device plays now. The device owns it until the next PlayMusic call.
+	class AudioSource* MusicSource = nullptr;
 	int FreeSlot = 0x07ffffff;
 };
