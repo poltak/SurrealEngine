@@ -9,6 +9,9 @@
 #include <ObjBase.h>
 #include <shellapi.h>
 #endif
+#ifdef __APPLE__
+#include <CoreFoundation/CoreFoundation.h>
+#endif
 
 #ifdef WIN32
 
@@ -72,6 +75,14 @@ int WINAPI wWinMain(HINSTANCE, HINSTANCE, PWSTR, int)
 
 int main(int argc, char** argv)
 {
+#ifdef __APPLE__
+	// After a crash, AppKit asks at the next start if it must open the windows of the last run again, and the program
+	// waits in that dialog with no game window. A game has no window state to restore, so turn this off.
+	CFPreferencesSetAppValue(CFSTR("ApplePersistenceIgnoreState"), kCFBooleanTrue, kCFPreferencesCurrentApplication);
+	CFPreferencesSetAppValue(CFSTR("NSQuitAlwaysKeepsWindows"), kCFBooleanFalse, kCFPreferencesCurrentApplication);
+	CFPreferencesAppSynchronize(kCFPreferencesCurrentApplication);
+#endif
+
 	try
 	{
 		Array<std::string> args;
