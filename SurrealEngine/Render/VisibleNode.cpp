@@ -8,6 +8,7 @@
 #include "Packages/Engine/Resources/Level/UModel.h"
 #include "Packages/Engine/Actors/Info/UZoneInfo.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
+#include "Packages/Engine/Subsystems/USurrealRenderDevice.h"
 
 void VisibleNode::Draw(VisibleFrame* frame)
 {
@@ -37,7 +38,8 @@ void VisibleNode::Draw(VisibleFrame* frame)
 	engine->render->UpdateTextureInfo(texture, surface, tex, ZoneUPanSpeed, ZoneVPanSpeed);
 
 	TextureInfo detailtex;
-	if (surface.Material && surface.Material->DetailTexture())
+	bool useDetailTexture = engine->renderdev->DetailTextures && surface.Material && surface.Material->DetailTexture();
+	if (useDetailTexture)
 	{
 		tex = surface.Material->DetailTexture()->GetAnimTexture();
 		engine->render->UpdateTexture(tex);
@@ -83,7 +85,7 @@ void VisibleNode::Draw(VisibleFrame* frame)
 	surfaceinfo.PolyFlags = PolyFlags;
 	surfaceinfo.Texture = &texture;
 	surfaceinfo.MacroTexture = surface.Material && surface.Material->MacroTexture() ? &macrotex : nullptr;
-	surfaceinfo.DetailTexture = surface.Material && surface.Material->DetailTexture() ? &detailtex : nullptr;
+	surfaceinfo.DetailTexture = useDetailTexture ? &detailtex : nullptr;
 	surfaceinfo.LightMap = lightmap.NumMips != 0 ? &lightmap : nullptr;
 	surfaceinfo.FogMap = fogmap.NumMips != 0 ? &fogmap : nullptr;
 

@@ -19,6 +19,8 @@ std::string USurrealRenderDevice::GetPropertyAsString(const NameString& property
 		return IniPropertyConverter<bool>::ToString(Coronas);
 	else if (propertyName == "HighDetailActors")
 		return IniPropertyConverter<bool>::ToString(HighDetailActors);
+	else if (propertyName == "DetailTextures")
+		return IniPropertyConverter<bool>::ToString(DetailTextures);
 
 	LogMessage("Queried unknown property for SurrealRenderDevice: " + propertyName.ToString());
 	return {};
@@ -36,6 +38,8 @@ void USurrealRenderDevice::SetPropertyFromString(const NameString& propertyName,
 		Coronas = IniPropertyConverter<bool>::FromString(value);
 	else if (propertyName == "HighDetailActors")
 		HighDetailActors = IniPropertyConverter<bool>::FromString(value);
+	else if (propertyName == "DetailTextures")
+		DetailTextures = IniPropertyConverter<bool>::FromString(value);
 	else
 		LogMessage("Setting unknown property for SurrealRenderDevice: " + propertyName.ToString());
 
@@ -54,6 +58,7 @@ void USurrealRenderDevice::LoadProperties(const NameString& from)
 	ShinySurfaces = IniPropertyConverter<bool>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "ShinySurfaces", ShinySurfaces);
 	Coronas = IniPropertyConverter<bool>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "Coronas", Coronas);
 	HighDetailActors = IniPropertyConverter<bool>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "HighDetailActors", HighDetailActors);
+	DetailTextures = IniPropertyConverter<bool>::FromIniFile(*engine->packages->GetIniFile("System"), name_from, "DetailTextures", DetailTextures);
 }
 
 void USurrealRenderDevice::SaveConfig()
@@ -63,4 +68,5 @@ void USurrealRenderDevice::SaveConfig()
 	engine->packages->SetIniValue("System", Class, "ShinySurfaces", IniPropertyConverter<bool>::ToString(ShinySurfaces));
 	engine->packages->SetIniValue("System", Class, "Coronas", IniPropertyConverter<bool>::ToString(Coronas));
 	engine->packages->SetIniValue("System", Class, "HighDetailActors", IniPropertyConverter<bool>::ToString(HighDetailActors));
+	engine->packages->SetIniValue("System", Class, "DetailTextures", IniPropertyConverter<bool>::ToString(DetailTextures));
 }
