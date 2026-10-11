@@ -38,6 +38,7 @@ class UActor;
 //   teleportto NAME [DISTANCE]      put the player near the actor with that name (or the nearest of that class) and aim at it
 //   teleport X Y Z [YAW]            move the player (YAW in Unreal units, 65536 = full turn)
 //   setprop CLASS PROPERTY VALUE    set a property on each live actor of that class (PROPERTY[N] for an array element)
+//   trigger TAG                     send the Trigger event to each actor with that tag, with the player as instigator
 //   dump CLASS [RADIUS] [PROPS]     log state and location of each actor of that class, with the listed properties (a,b,c)
 //   showtex PKG.NAME [PKG.NAME ...] draw these textures in a grid over the picture in each frame (no names: stop)
 //   windows                         log the tree of the visible Deus Ex interface windows with place, size,

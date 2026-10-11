@@ -891,6 +891,28 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			LogMessage("Harness: setflag " + name);
 		}
 	}
+	else if (e.Command == "trigger")
+	{
+		// trigger <tag>: send the Trigger event to each actor with that tag, as a trigger or a conversation does it.
+		// The player is the other actor and the instigator.
+		std::string tagName;
+		std::istringstream parts(e.Args);
+		parts >> tagName;
+		NameString tag(tagName);
+		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
+		int count = 0;
+		size_t actorCount = engine->Level->Actors.size();
+		for (size_t i = 0; i < actorCount && !tagName.empty(); i++)
+		{
+			UActor* actor = engine->Level->Actors[i];
+			if (actor && !actor->bDeleteMe() && actor->Tag() == tag)
+			{
+				CallEvent(actor, EventName::Trigger, { ExpressionValue::ObjectValue(player), ExpressionValue::ObjectValue(player) });
+				count++;
+			}
+		}
+		LogMessage("Harness: trigger " + tagName + ": " + std::to_string(count) + " actors");
+	}
 	else if (e.Command == "inv")
 	{
 		// inv: log the inventory chain of the player
