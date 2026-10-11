@@ -14,6 +14,8 @@
 #include "Packages/Extension/Windows/TabGroup/URootWindow.h"
 #include "Packages/Extension/Windows/Text/UTextWindow.h"
 #include "Packages/Extension/Windows/Text/UToggleWindow.h"
+#include "Packages/Extension/Windows/UScaleWindow.h"
+#include "Packages/Extension/Windows/TabGroup/UClipWindow.h"
 #include "Packages/Extension/Windows/UListWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Core/UClass.h"
@@ -320,6 +322,13 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 				events.insert(events.begin() + nextEvent, Event{ e.Time + 0.08, (e.Command == "rclick") ? "rmouseup" : "mouseup", e.Args });
 		}
 	}
+	else if (e.Command == "wheelup" || e.Command == "wheeldown")
+	{
+		// wheelup X Y | wheeldown X Y: one step of the mouse wheel with the mouse at that place
+		Point pos = ParsePoint(engine, e.Args);
+		engine->OnWindowMouseMove(pos);
+		engine->OnWindowMouseWheel(pos, (e.Command == "wheelup") ? IK_MouseWheelUp : IK_MouseWheelDown);
+	}
 	else if (e.Command == "rmouseup")
 	{
 		Point pos = ParsePoint(engine, e.Args);
@@ -603,6 +612,8 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		// windows: log each visible window of the Deus Ex interface: class, place in its parent, size, and flags.
 		// "focus" marks the window that gets the keys, "mouse" the window under the mouse.
 		// A text window also has the start of its text, a list window its count of rows, and a toggle or checkbox its state.
+		// A scale has its thumb position, its count of positions and the span of its thumb. A clip window has the
+		// position of its child in units.
 		URootWindow* root = engine->dxRootWindow;
 		if (!root)
 		{
@@ -635,6 +646,18 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 					}
 					if (auto toggleWindow = UObject::TryCast<UToggleWindow>(window))
 						content += toggleWindow->GetToggle() ? " toggle=on" : " toggle=off";
+					if (auto scaleWindow = UObject::TryCast<UScaleWindow>(window))
+					{
+						content += " tick=" + std::to_string(scaleWindow->GetTickPosition()) + "/" + std::to_string(scaleWindow->GetNumTicks());
+						if (scaleWindow->GetThumbSpan() > 0)
+							content += " span=" + std::to_string(scaleWindow->GetThumbSpan());
+					}
+					if (auto clipWindow = UObject::TryCast<UClipWindow>(window))
+					{
+						int column = 0, row = 0;
+						clipWindow->GetChildPosition(column, row);
+						content += " child=" + std::to_string(column) + "," + std::to_string(row);
+					}
 
 					char buf[500];
 					snprintf(buf, sizeof(buf), "Harness: window %*s%s x=%d y=%d w=%d h=%d%s%s%s%s%s", depth * 2, "", UObject::GetUClassName(window).ToString().c_str(),

@@ -31,6 +31,7 @@ class UActor;
 //   keydown K | keyup K | key K     K is a key name (a-z, 0-9, enter, esc, space, f1..f12, ...) or a key code
 //   char TEXT                       typed characters
 //   move X Y | click X Y | rclick X Y | mousedown X Y | mouseup X Y
+//   wheelup X Y | wheeldown X Y     one step of the mouse wheel with the mouse at that place
 //   raw DX DY                       relative mouse movement
 //   exec COMMAND                    console command
 //   shot NAME                       write one frame now as NAME.bmp
@@ -41,7 +42,8 @@ class UActor;
 //   showtex PKG.NAME [PKG.NAME ...] draw these textures in a grid over the picture in each frame (no names: stop)
 //   windows                         log the tree of the visible Deus Ex interface windows with place, size,
 //                                   the start of the text of a text window, the row count of a list and the
-//                                   state of a toggle or checkbox
+//                                   state of a toggle or checkbox, the thumb position of a scale, and the
+//                                   child position of a clip window
 //   log TEXT | quit
 class Harness
 {
