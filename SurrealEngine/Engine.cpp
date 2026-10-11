@@ -1637,14 +1637,44 @@ void Engine::OpenWindow()
 	if (!window)
 		window = GameWindow::Create(this);
 
+#ifdef __APPLE__
+	if (LaunchInfo.IsDeusEx() && packages->MissingSESystemIni())
+	{
+		// First start of Deus Ex with this engine on a Mac. The ini of the Windows game asks for an exclusive
+		// 640x480 screen mode, and a Mac has no such mode. Start in a window that is the largest whole multiple
+		// of 640x480 pixels that fits on the screen, because the game scales its screens by whole numbers.
+		// These values go to the ini of the engine when the game ends. The player can change them there.
+		Size screen = Widget::GetScreenSize();
+		double dpiScale = std::max(window->GetDpiScale(), 1.0);
+		const double reservedHeight = 110.0; // menu bar, title bar of the window and a part of the Dock, in points
+		int multiple = (int)std::min(std::floor(screen.width * dpiScale / 640.0), std::floor((screen.height - reservedHeight) * dpiScale / 480.0));
+		multiple = std::max(multiple, 1);
+		client->StartupFullscreen = false;
+		client->WindowedViewportX = (int)std::round(640.0 * multiple / dpiScale);
+		client->WindowedViewportY = (int)std::round(480.0 * multiple / dpiScale);
+		LogMessage("First start: window of " + std::to_string(client->WindowedViewportX) + "x" + std::to_string(client->WindowedViewportY) + " points");
+	}
+#endif
+
 	int width = client->StartupFullscreen ? client->FullscreenViewportX : client->WindowedViewportX;
 	int height = client->StartupFullscreen ? client->FullscreenViewportY : client->WindowedViewportY;
 	bool fullscreen = client->StartupFullscreen;
 
 	std::string versionString = !LaunchInfo.gameVersionString.empty() ? " (v" + LaunchInfo.gameVersionString + ")" : "";
 
+	Rect frame = Rect::xywh(0.0, 0.0, width, height);
+#ifdef __APPLE__
+	if (!fullscreen)
+	{
+		// Put the window in the center of the screen, with its title bar below the menu bar
+		Size screen = Widget::GetScreenSize();
+		frame.x = std::max((screen.width - width) * 0.5, 0.0);
+		frame.y = std::max((screen.height - height) * 0.5, 66.0);
+	}
+#endif
+
 	window->SetWindowTitle(LaunchInfo.gameName + versionString + " - Surreal Engine");
-	window->SetFrameGeometry(Rect::xywh(0.0, 0.0, width, height));
+	window->SetFrameGeometry(frame);
 	viewport->SetViewportRect(0, 0, width, height);
 
 	if (fullscreen)
