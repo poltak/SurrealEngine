@@ -578,53 +578,21 @@ void UGC::SetNormalFont(UObject* newNormalFont)
 
 void UGC::SetStyle(EDrawStyle NewStyle)
 {
+	// As XGC::SetStyle in Extension.dll: the style sets how tiles are drawn. Text has its own style, which only
+	// EnableTranslucentText changes. A window that draws text after a modulated or translucent tile gets its text
+	// in the text color.
 	Style() = (uint8_t)NewStyle;
-
-	// Is this what it is doing? So stupid to have the same states 3 times!
-	switch (NewStyle)
+	if (NewStyle == EDrawStyle::None)
 	{
-	case EDrawStyle::None:
 		bDrawEnabled() = false;
-		PolyFlags() = 0;
-		textPolyFlags() = 0;
-		break;
-	case EDrawStyle::Normal:
-		PolyFlags() = 0;
-		textPolyFlags() = 0;
-		bDrawEnabled() = true;
-		bMasked() = false;
-		bTranslucent() = false;
-		bModulated() = false;
-		bTextTranslucent() = false;
-		break;
-	case EDrawStyle::Masked:
-		PolyFlags() = 0;
-		textPolyFlags() = 0;
-		bDrawEnabled() = true;
-		bMasked() = true;
-		bTranslucent() = false;
-		bModulated() = false;
-		bTextTranslucent() = false;
-		break;
-	case EDrawStyle::Translucent:
-		PolyFlags() = 0;
-		textPolyFlags() = 0;
-		bDrawEnabled() = true;
-		bMasked() = false;
-		bTranslucent() = true;
-		bModulated() = false;
-		bTextTranslucent() = true;
-		break;
-	case EDrawStyle::Modulated:
-		PolyFlags() = 0;
-		textPolyFlags() = PF_Modulated;
-		bDrawEnabled() = true;
-		bMasked() = false;
-		bTranslucent() = false;
-		bModulated() = true;
-		bTextTranslucent() = false;
-		break;
+		return;
 	}
+
+	bDrawEnabled() = true;
+	bMasked() = NewStyle == EDrawStyle::Masked;
+	bTranslucent() = NewStyle == EDrawStyle::Translucent;
+	bModulated() = NewStyle == EDrawStyle::Modulated;
+	PolyFlags() = 0;
 }
 
 void UGC::SetTextColor(const Color& newTextColor)
