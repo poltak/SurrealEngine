@@ -417,6 +417,9 @@ inline void ExpressionValue::Store(const ExpressionValue& rvalue)
 	case ExpressionValueType::ValueName: *PtrName = rvalue.ToName(); break;
 	case ExpressionValueType::ValueColor: *PtrColor = rvalue.ToColor(); break;
 	case ExpressionValueType::ValueStruct:
+		// An optional struct parameter that the caller left out has no data. Keep the default value then.
+		if (rvalue.Type == ExpressionValueType::Nothing || !rvalue.Ptr)
+			break;
 		if (UStruct* Struct = VariableProperty ? static_cast<UStructProperty*>(VariableProperty)->Struct : GetStructValue()->Struct)
 		{
 			for (UProperty* prop : Struct->Properties)
@@ -426,6 +429,8 @@ inline void ExpressionValue::Store(const ExpressionValue& rvalue)
 		}
 		break;
 	case ExpressionValueType::ValueArray:
+		if (rvalue.Type == ExpressionValueType::Nothing || !rvalue.Ptr)
+			break;
 		if (UArrayProperty* Array = VariableProperty ? static_cast<UArrayProperty*>(VariableProperty) : GetArrayValue()->Type)
 		{
 			Array->CopyArray(Ptr, rvalue.Ptr);
