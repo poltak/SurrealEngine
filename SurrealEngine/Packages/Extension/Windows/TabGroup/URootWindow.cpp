@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "URootWindow.h"
+#include "Harness.h"
 #include "Utils/Logger.h"
 #include "Packages/Engine/UViewport.h"
 #include "Packages/Engine/Resources/USound.h"
@@ -372,56 +373,110 @@ bool URootWindow::OnWindowRawMouseMove(int dx, int dy)
 	return IsModalOpen();
 }
 
+// Keyboard routing follows XRootWindow in Extension.dll (build 1112fm):
+//
+// - XModalWindow::VisibilityChanged grabs the keyboard and the mouse for the window system while a
+//   modal window is visible. With no visible modal window, key events go to the game input.
+// - HandleVirtualKeyboard and HandleKeyboard start at the focus window. With no focus window they
+//   start at the top visible modal window, or at the root window.
+// - An event that a window does not handle goes to its parent, up to the root window.
+// - While the keyboard is grabbed, the window system consumes every key event, handled or not.
+
+UWindow* URootWindow::GetCurrentModal()
+{
+	for (UWindow* child = lastChild(); child; child = child->prevSibling())
+	{
+		// windowType is 2 (modal) or 3 (root) in the original. SurrealEngine does not fill that field, so test the class.
+		if (child->bIsVisible() && UObject::TryCast<UModalWindow>(child))
+			return child;
+	}
+	return this;
+}
+
+UWindow* URootWindow::GetKeyboardTarget()
+{
+	UWindow* target = FocusWindow();
+	return target ? target : GetCurrentModal();
+}
+
+bool URootWindow::HandleVirtualKeyboard(EInputKey key, EInputType action, bool repeat)
+{
+	bool trace = Harness::Get().TraceKeys;
+	bool handled = false;
+	for (UWindow* target = GetKeyboardTarget(); target; target = target->parentOwner())
+	{
+		if (trace)
+			LogMessage("Key trace: key " + std::to_string((int)key) + " action " + std::to_string((int)action) + " -> " + UObject::GetUClassFullName(target).ToString());
+		if (!repeat)
+			handled = target->RawKeyPressed(key, action, false);
+		if (handled)
+		{
+			if (trace) LogMessage("Key trace: handled by RawKeyPressed");
+			break;
+		}
+		if (action == EInputType::IST_Press)
+		{
+			handled = target->VirtualKeyPressed(key, repeat);
+			if (handled)
+			{
+				if (trace) LogMessage("Key trace: handled by VirtualKeyPressed");
+				break;
+			}
+		}
+	}
+	return handled;
+}
+
 bool URootWindow::OnWindowKeyChar(std::string chars)
 {
-	UWindow* focus = FocusWindow();
-	if (!focus)
-		return IsModalOpen();
+	if (!IsModalOpen())
+		return false;
 
-	if (focus->KeyPressed(chars))
-		return true;
+	bool altDown = engine->window->GetKeyState(IK_Alt);
+	for (UWindow* target = GetKeyboardTarget(); target; target = target->parentOwner())
+	{
+		// To do: this needs the accelerator table of the modal window (XModalWindow::KeyPressed)
+		if (altDown && target->acceleratorKey() != 0 && target->AcceleratorKeyPressed(std::string(1, (char)target->acceleratorKey())))
+			break;
+
+		if ((UObject::TryCast<UModalWindow>(target) || !altDown) && target->KeyPressed(chars))
+			break;
+	}
 
 	// To do: fire these for edit windows
 	// event bool TextChanged(window edit, bool bModified)
 	// event bool EditActivated(window edit, bool bModified)
 
-	return IsModalOpen();
+	return true;
 }
 
 bool URootWindow::OnWindowKeyDown(EInputKey key)
 {
-	UWindow* focus = FocusWindow();
-	if (!focus)
-		return IsModalOpen();
-
-	// To do: this shouldn't just check the focus window. It needs to build an accelerator table for all windows
-	if (engine->window->GetKeyState(IK_Alt) && focus->acceleratorKey() != 0)
+	bool repeat = false;
+	if ((int)key >= 0 && (int)key < 256)
 	{
-		std::string chars(1, (char)focus->acceleratorKey());
-		EInputKey accelKey = (EInputKey)(uint8_t)chars.front();
-		if (focus->AcceleratorKeyPressed(chars))
-			return true;
+		repeat = keyDownState[key];
+		keyDownState[key] = true;
 	}
 
-	bool repeat = false; // To do: can surrealwidgets tell us this?
+	if (!IsModalOpen())
+		return false;
 
-	if (focus->RawKeyPressed(key, EInputType::IST_Press, repeat))
-		return true;
-
-	if (focus->VirtualKeyPressed(key, repeat))
-		return true;
-
-	return IsModalOpen();
+	HandleVirtualKeyboard(key, EInputType::IST_Press, repeat);
+	return true;
 }
 
 bool URootWindow::OnWindowKeyUp(EInputKey key)
 {
-	UWindow* focus = FocusWindow();
-	if (!focus)
-		return IsModalOpen();
+	bool wasDown = true;
+	if ((int)key >= 0 && (int)key < 256)
+	{
+		wasDown = keyDownState[key];
+		keyDownState[key] = false;
+	}
 
-	if (focus->RawKeyPressed(key, EInputType::IST_Release, false))
-		return true;
+	if (!IsModalOpen())
+		return false;
 
 	// To do: fire these for specific window types
 	// event bool ButtonActivated(Window button)
@@ -430,14 +485,17 @@ bool URootWindow::OnWindowKeyUp(EInputKey key)
 	// event bool ListRowActivated(window list, int rowId)
 	// event bool ListSelectionChanged(window list, int numSelections, int focusRowId)
 
-	return IsModalOpen();
+	if (wasDown)
+		HandleVirtualKeyboard(key, EInputType::IST_Release, false);
+	return true;
 }
 
 bool URootWindow::IsModalOpen()
 {
+	// The original counts Grab/Ungrab calls from XModalWindow::VisibilityChanged. A visible modal child gives the same answer.
 	for (UWindow* child = lastChild(); child; child = child->prevSibling())
 	{
-		if (UObject::TryCast<UModalWindow>(child))
+		if (child->bIsVisible() && UObject::TryCast<UModalWindow>(child))
 			return true;
 	}
 	return false;

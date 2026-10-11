@@ -41,6 +41,11 @@ public:
 
 	bool IsCursorVisible();
 	bool IsModalOpen();
+	UWindow* GetCurrentModal();
+	UWindow* GetKeyboardTarget();
+	bool HandleVirtualKeyboard(EInputKey key, EInputType action, bool repeat);
+
+	bool keyDownState[256] = {};
 
 	UTexture*& DefaultMoveCursor() { return Value<UTexture*>(PropOffsets_RootWindow.DefaultMoveCursor); }
 	UWindow*& FocusWindow() { return Value<UWindow*>(PropOffsets_RootWindow.FocusWindow); }
