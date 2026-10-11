@@ -101,8 +101,11 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 
 	// Collect lights for the lightmap and check if they changed
 
+	// The baked lights that are not animated give the static part of the lightmap. It stays in a cache.
+	// The baked lights that are animated go with the dynamic lights: they are added for each new look.
 	int lastStaticUpdate = -100;
 	int lastDynamicUpdate = -100;
+	uint64_t steadyLightSet = 0;
 	uint64_t dynamicLightSet = 0;
 	TempDynLightList.clear();
 
@@ -121,7 +124,15 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 			{
 				UActor* light = lightlist[lightindex];
 				CheckLight(light);
-				lastStaticUpdate = std::max(lastStaticUpdate, light->Light.LastUpdate);
+				if (LightmapBuilder::IsAnimatedLight(light))
+				{
+					lastDynamicUpdate = std::max(lastDynamicUpdate, light->Light.LastUpdate);
+				}
+				else
+				{
+					lastStaticUpdate = std::max(lastStaticUpdate, light->Light.LastUpdate);
+					steadyLightSet += (uint64_t)(uintptr_t)light * 0x9E3779B97F4A7C15ULL;
+				}
 
 				// Mark the light as visited so the second pass doesn't pick it up
 				light->Light.LightmapCheckCounter = checkCounter;
@@ -170,7 +181,7 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 
 	// The checksum of the light set finds a dynamic light that went away. The update numbers of the other lights do not show that.
 	bool bRealtimeChanged = false;
-	if (!lmtexture || lmtexture->LastStaticUpdate != lastStaticUpdate || lmtexture->LastDynamicUpdate != lastDynamicUpdate || lmtexture->DynamicLightSet != dynamicLightSet)
+	if (!lmtexture || lmtexture->LastStaticUpdate != lastStaticUpdate || lmtexture->SteadyLightSet != steadyLightSet || lmtexture->LastDynamicUpdate != lastDynamicUpdate || lmtexture->DynamicLightSet != dynamicLightSet)
 	{
 		engine->render->Stats.LightmapsUpdated++;
 
@@ -189,15 +200,19 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 		{
 			Builder.SetAmbientLight(zoneActor);
 		}
-		else if (lmtexture->LastStaticUpdate != lastStaticUpdate)
+		else
 		{
-			Builder.SetAmbientLight(zoneActor);
-			Builder.AddStaticLights(model, lightmapIndex);
-			Builder.SaveStaticLight(lmtexture->StaticLightColors);
-		}
-		else if (lmtexture->StaticLightColors.size() == Builder.Width() * Builder.Height())
-		{
-			Builder.LoadStaticLight(lmtexture->StaticLightColors);
+			if (lmtexture->LastStaticUpdate != lastStaticUpdate || lmtexture->SteadyLightSet != steadyLightSet || lmtexture->StaticLightColors.size() != (size_t)Builder.Width() * Builder.Height())
+			{
+				Builder.SetAmbientLight(zoneActor);
+				Builder.AddStaticLights(model, lightmapIndex, false);
+				Builder.SaveStaticLight(lmtexture->StaticLightColors);
+			}
+			else
+			{
+				Builder.LoadStaticLight(lmtexture->StaticLightColors);
+			}
+			Builder.AddStaticLights(model, lightmapIndex, true);
 		}
 
 		Builder.AddDynamicLights(model, lightmapIndex, TempDynLightList);
@@ -215,6 +230,7 @@ TextureInfo LightSystem::GetLightmap(UModel* model, int lightmapIndex, const Coo
 		}
 
 		lmtexture->LastStaticUpdate = lastStaticUpdate;
+		lmtexture->SteadyLightSet = steadyLightSet;
 		lmtexture->LastDynamicUpdate = lastDynamicUpdate;
 		lmtexture->DynamicLightSet = dynamicLightSet;
 		lmtexture->Grid = Builder.GetTexelGrid();

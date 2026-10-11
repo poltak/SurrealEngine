@@ -40,7 +40,10 @@ public:
 	// so this keeps the work for a small light small.
 	static bool GetLightRect(UActor* light, const LightmapTexelGrid& grid, LightmapTexelRect& rect);
 	void SetAmbientLight(UZoneInfo* zoneActor);
-	void AddStaticLights(UModel* model, int lightMap);
+	// Adds the lights that are baked into the map. A light with a look that changes with time is "animated".
+	// The caller keeps the result of the other lights and adds only the animated ones for each new look.
+	void AddStaticLights(UModel* model, int lightMap, bool animated);
+	static bool IsAnimatedLight(UActor* light);
 	void AddDynamicLights(UModel* model, int lightMap, const Array<UActor*>& lights);
 
 	void LoadStaticLight(const Array<vec3>& staticLightColors);
@@ -58,7 +61,7 @@ private:
 
 	void CalcWorldLocations(Coords MapCoords, const LightMapIndex& lmindex);
 
-	void AddLight(UActor* light);
+	void AddLight(UActor* light, const LightmapTexelRect& rect);
 	void AddLightContribution(UActor* light, const LightmapTexelRect& rect);
 
 	LightmapTexelGrid grid;

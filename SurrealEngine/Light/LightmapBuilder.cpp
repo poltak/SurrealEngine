@@ -107,12 +107,8 @@ bool LightmapBuilder::GetLightRect(UActor* light, const LightmapTexelGrid& grid,
 	return true;
 }
 
-void LightmapBuilder::AddLight(UActor* light)
+void LightmapBuilder::AddLight(UActor* light, const LightmapTexelRect& rect)
 {
-	LightmapTexelRect rect;
-	if (!GetLightRect(light, grid, rect))
-		return;
-
 	int count = rect.x1 - rect.x0 + 1;
 	for (int y = rect.y0; y <= rect.y1; y++)
 	{
@@ -129,8 +125,9 @@ void LightmapBuilder::SetAmbientLight(UZoneInfo* zoneActor)
 	vec3 ambientColor = hsbtorgb(zoneActor->AmbientHue(), zoneActor->AmbientSaturation(), zoneActor->AmbientBrightness()); // To do: is this the correct scale?
 	// To do: is there more ambient light than just from the zone?
 
-	for (vec3& c : lightcolors)
-		c = ambientColor;
+	size_t count = (size_t)width * height;
+	for (size_t i = 0; i < count; i++)
+		lightcolors[i] = ambientColor;
 
 	// To do: how does polyflags affect the lightmap (if at all)?
 
@@ -151,10 +148,34 @@ void LightmapBuilder::SaveStaticLight(Array<vec3>& staticLightColors)
 	std::memcpy(staticLightColors.data(), lightcolors.data(), width * height * sizeof(vec3));
 }
 
-void LightmapBuilder::AddStaticLights(UModel* model, int lightMap)
+bool LightmapBuilder::IsAnimatedLight(UActor* light)
 {
-	size_t count = (size_t)width * height;
+	// Lights that pulse, blink, flicker or get their color from a palette
+	uint8_t lightType = light->LightType();
+	if (lightType > LT_Steady && lightType != LT_BackdropLight)
+		return true;
 
+	switch (light->LightEffect())
+	{
+	case LE_Searchlight:
+		return light->LightPeriod() != 0; // it turns only with a light period
+	case LE_TorchWaver:
+	case LE_FireWaver:
+	case LE_WateryShimmer:
+	case LE_SlowWave:
+	case LE_FastWave:
+	case LE_Shock:
+	case LE_Disco:
+	case LE_Interference:
+	case LE_Rotor:
+		return true;
+	default:
+		return false;
+	}
+}
+
+void LightmapBuilder::AddStaticLights(UModel* model, int lightMap, bool animated)
+{
 	const LightMapIndex& lmindex = model->LightMap[lightMap];
 	if (lmindex.LightActors >= 0)
 	{
@@ -162,10 +183,14 @@ void LightmapBuilder::AddStaticLights(UModel* model, int lightMap)
 		for (int lightindex = 0; lightlist[lightindex] != nullptr; lightindex++)
 		{
 			UActor* light = lightlist[lightindex];
-			if (light->LightType() != LT_None && light->LightBrightness() > 0)
+			if (light->LightType() != LT_None && light->LightBrightness() > 0 && IsAnimatedLight(light) == animated)
 			{
-				Shadow.Load(model, lightMap, lightindex);
-				AddLight(light);
+				// The shadow map of a large lightmap takes long to decode. Do it only for the texels that the light can reach.
+				LightmapTexelRect rect;
+				if (!GetLightRect(light, grid, rect))
+					continue;
+				Shadow.Load(model, lightMap, lightindex, rect.x0, rect.y0, rect.x1, rect.y1);
+				AddLight(light, rect);
 			}
 		}
 	}
@@ -173,13 +198,14 @@ void LightmapBuilder::AddStaticLights(UModel* model, int lightMap)
 
 void LightmapBuilder::AddDynamicLights(UModel* model, int lightMap, const Array<UActor*>& lights)
 {
-	size_t count = (size_t)width * height;
 	Shadow.Clear(model, lightMap);
 	for (UActor* light : lights)
 	{
 		if (light->LightType() != LT_None && light->LightBrightness() > 0)
 		{
-			AddLight(light);
+			LightmapTexelRect rect;
+			if (GetLightRect(light, grid, rect))
+				AddLight(light, rect);
 		}
 	}
 }

@@ -44,6 +44,31 @@ void LightSystem::OnMapLoaded()
 	}
 }
 
+size_t LightSystem::GetMemoryUsage() const
+{
+	size_t total = 0;
+	for (const auto& it : lmtextures)
+	{
+		if (it.second)
+			total += it.second->Mip.Data.size() + it.second->StaticLightColors.size() * sizeof(vec3) + sizeof(LightmapTexture);
+	}
+	for (const auto& it : fogtextures)
+	{
+		if (it.second.second)
+			total += it.second.second->Mip.Data.size() + sizeof(LightmapTexture);
+	}
+	return total;
+}
+
+void LightSystem::FreeMemory()
+{
+	lmtextures.clear();
+	fogtextures.clear();
+	FogBalls.clear();
+	LightTree.Lights.clear();
+	TempDynLightList.clear();
+}
+
 void LightSystem::BeginFrame()
 {
 	FrameCounter++;
@@ -66,14 +91,6 @@ void LightSystem::BeginFrame()
 		if (lightType == LT_None || actor->LightBrightness() == 0)
 			continue;
 
-		bool needsUpdate = false;
-
-		if (lightType > LT_Steady && lightType != LT_BackdropLight)
-		{
-			// Always invalidate lights that pulse and blink
-			needsUpdate = animateLights;
-		}
-
 		// Flicker lights flickered randomly every frame in UE1 but this looks terrible at higher refresh rates.
 		// Use an upper cap on how often it will flicker that roughly matches what was probably intended.
 		if (lightType == LT_Flicker && actor->Light.NextFlickerTime < actor->Level()->TimeSeconds())
@@ -83,43 +100,8 @@ void LightSystem::BeginFrame()
 			actor->Light.FlickerRandom = (RandInt(1) != 0);
 		}
 
-		// Some light effects animate
-		uint8_t lightEffect = actor->LightEffect();
-		switch (lightEffect)
-		{
-		default:
-		case LE_None:
-		case LE_Warp:
-		case LE_CloudCast:
-		case LE_Unused:
-		case LE_OmniBumpMap:
-		case LE_Cylinder:
-		case LE_NonIncidence:
-		case LE_StaticSpot:
-		case LE_Spotlight:
-		case LE_Shell:
-			// These don't animate
-			break;
-
-		case LE_Searchlight:
-			// This one only updates if it has a light period
-			if (actor->LightPeriod() != 0 && animateLights)
-				needsUpdate = true;
-			break;
-
-		case LE_TorchWaver:
-		case LE_FireWaver:
-		case LE_WateryShimmer:
-		case LE_SlowWave:
-		case LE_FastWave:
-		case LE_Shock:
-		case LE_Disco:
-		case LE_Interference:
-		case LE_Rotor:
-			if (animateLights)
-				needsUpdate = true;
-			break;
-		}
+		// Lights that pulse and blink, and light effects that animate, get a new look
+		bool needsUpdate = animateLights && LightmapBuilder::IsAnimatedLight(actor);
 
 		if (needsUpdate)
 			actor->Light.LastUpdate = FrameCounter;

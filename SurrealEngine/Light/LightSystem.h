@@ -29,6 +29,9 @@ struct LightmapTexture
 	// Where the texels are in the world, and a checksum of the dynamic lights that are in the lightmap
 	LightmapTexelGrid Grid;
 	uint64_t DynamicLightSet = 0;
+
+	// A checksum of the baked lights that are not animated. StaticLightColors has the light of these lights.
+	uint64_t SteadyLightSet = 0;
 };
 
 class VertexLight
@@ -189,6 +192,12 @@ public:
 	void Tick(float levelTimeElapsed);
 
 	void OnMapLoaded();
+
+	// The memory of the lightmaps and fog maps in this cache, in bytes
+	size_t GetMemoryUsage() const;
+
+	// Frees the lightmaps and fog maps. The engine calls this for a level that it leaves.
+	void FreeMemory();
 
 	void BeginFrame();
 	void UpdateLightList(UActor* actor);

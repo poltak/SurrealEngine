@@ -41,7 +41,7 @@ void Shadowmap::Clear(UModel* model, int lightMap)
 		dest[i] = 1.0f;
 }
 
-void Shadowmap::Load(UModel* model, int lightMap, int lightindex)
+void Shadowmap::Load(UModel* model, int lightMap, int lightindex, int x0, int y0, int x1, int y1)
 {
 	const LightMapIndex& lmindex = model->LightMap[lightMap];
 	int width = lmindex.UClamp;
@@ -55,14 +55,27 @@ void Shadowmap::Load(UModel* model, int lightMap, int lightindex)
 	this->width = width;
 	this->height = height;
 
+	x0 = clamp(x0, 0, width - 1);
+	x1 = clamp(x1, 0, width - 1);
+	y0 = clamp(y0, 0, height - 1);
+	y1 = clamp(y1, 0, height - 1);
+	if (x1 < x0 || y1 < y0)
+		return;
+
+	// The blur reads one texel more on each side
+	int bx0 = std::max(x0 - 1, 0);
+	int bx1 = std::min(x1 + 1, width - 1);
+	int by0 = std::max(y0 - 1, 0);
+	int by1 = std::min(y1 + 1, height - 1);
+
 #if 1
 	// Convert bits to floats that are easier to work with
 
-	const uint8_t* bits = model->LightBits.data() + lmindex.DataOffset + lightindex * pitch * height;
-	for (int y = 0; y < height; y++)
+	const uint8_t* bits = model->LightBits.data() + lmindex.DataOffset + lightindex * pitch * height + by0 * pitch;
+	for (int y = by0; y <= by1; y++)
 	{
 		float* line = &tempbuf[y * width];
-		for (int x = 0; x < width; x++)
+		for (int x = bx0; x <= bx1; x++)
 		{
 			bool shadowtest = (bits[x >> 3] & (1 << (x & 7))) != 0;
 			line[x] = (float)shadowtest;
@@ -72,11 +85,11 @@ void Shadowmap::Load(UModel* model, int lightMap, int lightindex)
 
 	// Apply 3x3 gaussian blur
 	static const float weights[9] = { 0.125f, 0.25f, 0.125f, 0.25f, 0.50f, 0.25f, 0.125f, 0.25f, 0.125f };
-	float* dest = pixels.data();
-	const float* src = tempbuf.data();
-	for (int y = 0; y < height; y++, dest += width, src += width)
+	for (int y = y0; y <= y1; y++)
 	{
-		for (int x = 0; x < width; x++)
+		float* dest = pixels.data() + y * width;
+		const float* src = tempbuf.data() + y * width;
+		for (int x = x0; x <= x1; x++)
 		{
 			float value = 0.0f;
 			for (int yy = -1; yy <= 1; yy++)

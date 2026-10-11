@@ -8,7 +8,8 @@ class Shadowmap
 public:
 	Shadowmap();
 
-	void Load(UModel* model, int lightMap, int lightindex);
+	// Loads the shadow map of one light for a block of texels (the limits are inclusive). The texels outside the block keep old values.
+	void Load(UModel* model, int lightMap, int lightindex, int x0, int y0, int x1, int y1);
 	void Clear(UModel* model, int lightMap);
 
 	int Width() const { return width; }
