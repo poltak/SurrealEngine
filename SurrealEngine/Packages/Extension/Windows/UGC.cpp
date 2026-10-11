@@ -652,6 +652,12 @@ void UGC::DrawTile(UTexture* tex, const Rectf& dest, const Rectf& src, const Col
 	float Z = 1.0f;
 	vec4 fog(0.0f);
 
+	// A texture can be an animation or a fire texture. Give it its time and use the frame of this moment,
+	// as the canvas does for its tiles.
+	engine->render->UpdateTexture(tex);
+	tex = tex->GetAnimTexture();
+	engine->render->UpdateTexture(tex);
+
 	TextureInfo texinfo;
 	texinfo.CacheID = (uint64_t)(ptrdiff_t)tex;
 	texinfo.Texture = tex;
@@ -662,6 +668,9 @@ void UGC::DrawTile(UTexture* tex, const Rectf& dest, const Rectf& src, const Col
 	texinfo.VSize = tex->VSize();
 	if (tex->Palette())
 		texinfo.Palette = (TextureColor*)tex->Palette()->Colors.data();
+	texinfo.bRealtimeChanged = tex->TextureModified;
+	if (tex->TextureModified)
+		tex->TextureModified = false;
 
 	if (dest.left >= dest.right || dest.top >= dest.bottom)
 		return;
