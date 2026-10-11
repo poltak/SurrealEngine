@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "Engine.h"
+#include "Utils/CommandLine.h"
 #include "Utils/File.h"
 #include "Utils/StrTools.h"
 #include "Utils/SHA1Sum.h"
@@ -115,6 +116,14 @@ Engine::~Engine()
 	engine = nullptr;
 }
 
+
+// Local test harness (fork only): --nograb keeps the mouse cursor free
+static bool HarnessNoGrab()
+{
+	static const bool nograb = commandline && commandline->HasArg({}, "--nograb");
+	return nograb;
+}
+
 void Engine::Run()
 {
 	LogMessage("Game: " + LaunchInfo.gameName + " (Version: " + LaunchInfo.gameVersionString + ")");
@@ -132,7 +141,8 @@ void Engine::Run()
 	if (engine->LaunchInfo.ue1Version > 219 && !client->StartupFullscreen)
 		viewport->bWindowsMouseAvailable() = true;
 
-	window->LockCursor();
+	if (!HarnessNoGrab())
+		window->LockCursor();
 
 	if (packages->IsKlingonHonorGuard())
 	{
@@ -235,6 +245,13 @@ void Engine::Run()
 
 		viewport->SetViewportRect(0, 0, engine->window->GetPixelWidth(), engine->window->GetPixelHeight());
 		render->DrawGame(levelElapsed);
+
+		// Local test harness (fork only)
+		{
+			static const double exitAfter = commandline ? commandline->GetArgDouble({}, "--exit-after", 0.0) : 0.0;
+			if (exitAfter > 0.0 && TotalTime >= exitAfter)
+				quit = true;
+		}
 
 		// Save the game if there is a request for it
 		if (SaveGameInfo.SaveGameSlot != DONT_SAVE_GAME)
@@ -1576,7 +1593,7 @@ void Engine::TickWindow()
 	{
 		if (viewport->bShowWindowsMouse() && viewport->bWindowsMouseAvailable())
 			window->UnlockCursor();
-		else
+		else if (!HarnessNoGrab())
 			window->LockCursor();
 	}
 
@@ -1738,7 +1755,7 @@ void Engine::OnWindowDpiScaleChanged()
 
 void Engine::LockCursor()
 {
-	if (window)
+	if (window && !HarnessNoGrab())
 		window->LockCursor();
 }
 
