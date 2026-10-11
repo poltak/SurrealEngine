@@ -284,6 +284,14 @@ void VisibleFrame::ProcessNodeSurface(BspNode* node, bool front)
 	if (!Clipper.CheckSurface(points, numverts, (PolyFlags & PF_NoOcclude) == 0))
 		return;
 
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// Deus Ex: AActor::InStasis reads the time at which the zone of the actor was last drawn
+		int visibleZone = front ? node->Zone1 : node->Zone0;
+		if (visibleZone >= 0 && visibleZone < 64)
+			engine->Level->ZoneLastRenderTime[visibleZone] = engine->LevelInfo->TimeSeconds();
+	}
+
 	/*if (PolyFlags & PF_Portal)
 	{
 		ViewZoneMask |= 1ULL << node->Zone0;

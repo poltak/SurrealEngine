@@ -465,14 +465,20 @@ void NActor::IsOverlapping(UObject* Self, UObject* checkActor, BitfieldBool& Ret
 
 void NActor::LastRendered(UObject *Self, float &ReturnValue)
 {
-	if (UDecal* decal = UObject::TryCast<UDecal>(Self))  
-	{  
-		ReturnValue = decal->LastRenderedTime();  
-	}  
-	else  
-	{  
-		ReturnValue = 0.0f; // UActor no tiene LastRenderedTime  
-	}  
+	if (UDecal* decal = UObject::TryCast<UDecal>(Self))
+	{
+		ReturnValue = decal->LastRenderedTime();
+	}
+	else if (engine->LaunchInfo.IsDeusEx())
+	{
+		// Deus Ex: the time in seconds since the renderer last drew this actor
+		UActor* actor = UObject::Cast<UActor>(Self);
+		ReturnValue = std::max(actor->Level()->TimeSeconds() - actor->LastRenderTime(), 0.0f);
+	}
+	else
+	{
+		ReturnValue = 0.0f;
+	}
 }
 
 void NActor::LinkSkelAnim(UObject* Self, UObject* Anim)
@@ -840,7 +846,8 @@ void NActor::AISendEvent(UObject* Self, const NameString& eventName, uint8_t eve
 
 void NActor::AISetEventCallback(UObject* Self, const NameString& eventName, const NameString& callback, std::optional<NameString> scoreCallback, std::optional<bool> bCheckVisibility, std::optional<bool> bCheckDir, std::optional<bool> bCheckCylinder, std::optional<bool> bCheckLOS)
 {
-	LogUnimplemented("Actor.AISetEventCallback");
+	UActor* actor = UObject::Cast<UActor>(Self);
+	actor->AISetEventCallback(eventName, callback, scoreCallback, bCheckVisibility, bCheckDir, bCheckCylinder, bCheckLOS);
 }
 
 void NActor::AIStartEvent(UObject* Self, const NameString& eventName, uint8_t eventType, std::optional<float> Value, std::optional<float> Radius)
@@ -893,7 +900,7 @@ void NActor::TraceThisActor_U227(UObject* Self, vec3& TraceEnd, vec3& TraceStart
 void NActor::InStasis(UObject* Self, BitfieldBool& ReturnValue)
 {
 	UActor* SelfActor = UObject::Cast<UActor>(Self);
-	ReturnValue = SelfActor->bStasis() || SelfActor->bForceStasis();
+	ReturnValue = SelfActor->InStasis();
 }
 
 void NActor::ParabolicTrace(UObject* Self, vec3& finalLocation, std::optional<vec3> startVelocity, std::optional<vec3> startLocation, std::optional<bool> bCheckActors, std::optional<vec3> Cylinder, std::optional<float> maxTime, std::optional<float> elasticity, std::optional<bool> bBounce, std::optional<float> landingSpeed, std::optional<float> granularity, float& ReturnValue)  

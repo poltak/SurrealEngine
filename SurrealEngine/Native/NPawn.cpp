@@ -289,20 +289,24 @@ void NPawn::pointReachable(UObject* Self, const vec3& aPoint, BitfieldBool& Retu
 
 void NPawn::AICanHear(UObject* Self, UObject* Other, std::optional<float> Volume, std::optional<float> Radius, float& ReturnValue)
 {
-	LogUnimplemented("Pawn.AICanHear");
-	ReturnValue = 0.0f;
+	// Deus Ex. The default values are from APawn::execAICanHear in Engine.dll.
+	ReturnValue = UObject::Cast<UPawn>(Self)->AICanHear(UObject::Cast<UActor>(Other), Volume ? *Volume : 1.0f, Radius ? *Radius : -1.0f);
 }
 
 void NPawn::AICanSee(UObject* Self, UObject* Other, std::optional<float> Visibility, std::optional<bool> bCheckVisibility, std::optional<bool> bCheckDir, std::optional<bool> bCheckCylinder, std::optional<bool> bCheckLOS, float& ReturnValue)
 {
-	LogUnimplemented("Pawn.AICanSee");
-	ReturnValue = 0.0f;
+	// Deus Ex. The default values are from APawn::execAICanSee in Engine.dll.
+	ReturnValue = UObject::Cast<UPawn>(Self)->AICanSee(UObject::Cast<UActor>(Other),
+		Visibility ? *Visibility : 1.0f,
+		bCheckVisibility ? *bCheckVisibility : true,
+		bCheckDir ? *bCheckDir : true,
+		bCheckCylinder ? *bCheckCylinder : false,
+		bCheckLOS ? *bCheckLOS : true);
 }
 
 void NPawn::AICanSmell(UObject* Self, UObject* Other, std::optional<float> Smell, float& ReturnValue)
 {
-	LogUnimplemented("Pawn.AICanSmell");
-	ReturnValue = 0.0f;
+	ReturnValue = UObject::Cast<UPawn>(Self)->AICanSmell(UObject::Cast<UActor>(Other), Smell ? *Smell : 1.0f);
 }
 
 void NPawn::AIDirectionReachable(UObject* Self, const vec3& Focus, int Yaw, int Pitch, float minDist, float maxDist, vec3& bestDest, BitfieldBool& ReturnValue)

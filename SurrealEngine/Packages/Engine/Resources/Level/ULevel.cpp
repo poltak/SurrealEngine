@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "ULevel.h"
+#include "Packages/DeusEx/AIEventManager.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Engine/Actors/NavigationPoint/UNavigationPoint.h"
@@ -116,6 +117,10 @@ void ULevel::Tick(float elapsed, bool gamePaused)
 				TickActor(elapsed, Actors[i]);
 		}
 	}
+
+	// Deus Ex: the AI event manager runs after all actors, when the level is not paused (ULevel::Tick in Engine.dll)
+	if (EventManager && !gamePaused && !engine->LevelInfo->bPlayersOnly())
+		EventManager->Tick();
 
 	Array<UActor*> newActorList;
 	newActorList.reserve(Actors.size());

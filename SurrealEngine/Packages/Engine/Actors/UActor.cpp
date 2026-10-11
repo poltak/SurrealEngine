@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "UActor.h"
+#include "Packages/DeusEx/AIEventManager.h"
 #include "Packages/Core/UClass.h"
 #include "Packages/Engine/UViewport.h"
 #include "Packages/Engine/Actors/USpawnNotify.h"
@@ -121,6 +122,9 @@ bool UActor::Destroy()
 		return true;
 
 	bDeleteMe() = true;
+
+	if (XLevel() && XLevel()->EventManager)
+		XLevel()->EventManager->DestroyActor(this);
 
 	//GotoState({}, {}); // What should happen to function calls after Destroy() has been called? Razor2 calls SetRoll afterwards!
 	SetBase(nullptr, true);
@@ -350,48 +354,52 @@ bool UActor::IsOSVer2kOrXP()
 	return true;
 }
 
+// Deus Ex AI events, see Packages/DeusEx/AIEventManager.h. AIGetLightLevel and AIVisibility are in Packages/DeusEx/AIPerception.cpp.
+
+static AIEventManager* GetAIEventManager(UActor* actor)
+{
+	ULevel* level = actor->XLevel();
+	return level ? level->EventManager.get() : nullptr;
+}
+
 void UActor::AIClearEvent(const NameString& eventName)
 {
-	LogUnimplemented("Actor.AIClearEvent");
+	if (AIEventManager* manager = GetAIEventManager(this))
+		manager->ClearEvent(this, eventName);
 }
 
 void UActor::AIClearEventCallback(const NameString& eventName)
 {
-	LogUnimplemented("Actor.AIClearEventCallback");
+	if (AIEventManager* manager = GetAIEventManager(this))
+		manager->ClearEventCallback(this, eventName);
 }
 
 void UActor::AIEndEvent(const NameString& eventName, uint8_t eventType)
 {
-	LogUnimplemented("Actor.AIEndEvent");
-}
-
-float UActor::AIGetLightLevel(const vec3& Location)
-{
-	LogUnimplemented("Actor.AIGetLightLevel");
-	return 1.0f;
+	if (AIEventManager* manager = GetAIEventManager(this))
+		manager->EndEvent(this, eventName, eventType);
 }
 
 void UActor::AISendEvent(const NameString& eventName, uint8_t eventType, std::optional<float> Value, std::optional<float> Radius)
 {
-	LogUnimplemented("Actor.AISendEvent");
-	//LogUnimplemented(Name.ToString() + ": AISendEvent('" + eventName.ToString() + "')");
+	if (AIEventManager* manager = GetAIEventManager(this))
+		manager->SendEvent(this, eventName, eventType, Value ? *Value : 1.0f, Radius ? *Radius : 800.0f);
 }
 
 void UActor::AISetEventCallback(const NameString& eventName, const NameString& callback, std::optional<NameString> scoreCallback, std::optional<bool> bCheckVisibility, std::optional<bool> bCheckDir, std::optional<bool> bCheckCylinder, std::optional<bool> bCheckLOS)
 {
-	LogUnimplemented("Actor.AISetEventCallback");
-	//LogMessage(Name.ToString() + ": AISetEventCallback('" + eventName.ToString() + "')");
+	if (AIEventManager* manager = GetAIEventManager(this))
+	{
+		manager->SetEventCallback(this, eventName, callback, scoreCallback ? *scoreCallback : NameString(),
+			bCheckVisibility ? *bCheckVisibility : true,
+			bCheckDir ? *bCheckDir : true,
+			bCheckCylinder ? *bCheckCylinder : false,
+			bCheckLOS ? *bCheckLOS : true);
+	}
 }
 
 void UActor::AIStartEvent(const NameString& eventName, uint8_t eventType, std::optional<float> Value, std::optional<float> Radius)
 {
-	LogUnimplemented("Actor.AIStartEvent");
-	//LogUnimplemented(Name.ToString() + ": AIStartEvent('" + eventName.ToString() + "')");
-}
-
-float UActor::AIVisibility(std::optional<bool> bIncludeVelocity)
-{
-	LogUnimplemented("Actor.AIVisibility");
-	//LogMessage(Name.ToString() + ": AIVisibility");
-	return 0.0f;
+	if (AIEventManager* manager = GetAIEventManager(this))
+		manager->StartEvent(this, eventName, eventType, Value ? *Value : 1.0f, Radius ? *Radius : 800.0f);
 }

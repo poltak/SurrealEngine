@@ -233,6 +233,12 @@ public:
 	FixedArrayView<float, 4> animTimer() { return FixedArray<float, 4>(PropOffsets_Pawn.animTimer); }
 	BitfieldBool bOnFire() { return BoolValue(PropOffsets_Pawn.bOnFire); }
 	float& burnTimer() { return Value<float>(PropOffsets_Pawn.burnTimer); }
+	// Deus Ex AI perception, see Packages/DeusEx/AIPerception.cpp
+	float AICanSee(UActor* other, float visibility, bool bCheckVisibility, bool bCheckDir, bool bCheckCylinder, bool bCheckLOS);
+	float AICanSeeInternal(UActor* other, float visibility, bool bCheckVisibility, bool bCheckDir, bool bCheckCylinder, bool bCheckLOS);
+	float AICanHear(UActor* other, float volume, float radius);
+	float AICanSmell(UActor* other, float smell);
+
 	float& AIHorizontalFov() { return Value<float>(PropOffsets_Pawn.AIHorizontalFov); }
 	float& AspectRatio() { return Value<float>(PropOffsets_Pawn.AspectRatio); }
 	float& AngularResolution() { return Value<float>(PropOffsets_Pawn.AngularResolution); }

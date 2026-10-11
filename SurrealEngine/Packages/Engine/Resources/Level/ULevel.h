@@ -32,6 +32,8 @@ public:
 	int8_t bPruned = 0;
 };
 
+class AIEventManager;
+
 class ULevel : public ULevelBase
 {
 public:
@@ -47,6 +49,10 @@ public:
 
 	CollisionSystem Collision;
 	LightSystem Light;
+
+	// Deus Ex
+	std::unique_ptr<AIEventManager> EventManager;
+	float ZoneLastRenderTime[64] = {};
 	std::map<std::string, std::string> TravelInfo;
 
 private:

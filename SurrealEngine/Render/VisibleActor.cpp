@@ -1,6 +1,7 @@
 
 #include "Precomp.h"
 #include "VisibleActor.h"
+#include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "VisibleFrame.h"
 #include "VisibleBrush.h"
 #include "VisibleMesh.h"
@@ -55,6 +56,10 @@ void VisibleActor::Process(VisibleFrame* frame, UActor* actor)
 
 	if (!frame->Clipper.IsAABBVisible(actor->BspInfo.BoundingBox))
 		return;
+
+	// Deus Ex: the AI uses the time of the last frame in which the player could see the actor
+	if (engine->LaunchInfo.IsDeusEx())
+		actor->LastRenderTime() = engine->LevelInfo->TimeSeconds();
 
 	EDrawType dt = (EDrawType)actor->DrawType();
 	if (dt == DT_Mesh && actor->Mesh())

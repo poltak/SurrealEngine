@@ -1,6 +1,8 @@
 
 #include "Precomp.h"
 #include "NLevelInfo.h"
+#include "Packages/DeusEx/AIEventManager.h"
+#include "Packages/Engine/Resources/Level/ULevel.h"
 #include "VM/NativeFunc.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "Utils/Logger.h"
@@ -61,6 +63,8 @@ void NLevelInfo::GetLocZone_U227k(UObject* Self, const vec3& Pos, std::optional<
 
 void NLevelInfo::InitEventManager(UObject* Self)
 {
-	LogUnimplemented("LevelInfo.InitEventManager");
 	// Deus Ex
+	ULevel* level = UObject::Cast<ULevelInfo>(Self)->XLevel();
+	if (level && !level->EventManager)
+		level->EventManager = std::make_unique<AIEventManager>(level);
 }
