@@ -278,6 +278,7 @@ void NObject::RegisterFunctions()
 	{
 		RegisterVMNativeFunc_2("Object", "AllObjects", &NObject::AllObjects_DeusEx, 1001);
 		RegisterVMNativeFunc_1("Object", "CriticalDelete", &NObject::CriticalDelete, 751);
+		RegisterVMNativeFunc_3("Object", "GetConfig", &NObject::GetConfig_DeusEx, 0);
 	}
 
 	// Package 61 stuff
@@ -579,7 +580,14 @@ void NObject::Disable(UObject* Self, const NameString& ProbeFunc)
 
 void NObject::CriticalDelete(UObject* Self, UObject* myObject)
 {
-	LogUnimplemented("Object.CriticalDelete");
+	// The original deletes the object immediately. This engine keeps objects until its garbage collector runs,
+	// and the scripts drop their reference after the call, so there is nothing to do.
+}
+
+void NObject::GetConfig_DeusEx(const std::string& ConfigSection, const std::string& ConfigKey, std::string& ReturnValue)
+{
+	// Reads a value from the game ini file
+	ReturnValue = engine->packages->GetIniValue("System", ConfigSection, ConfigKey);
 }
 
 void NObject::Divide_U227(std::string& Src, std::string& Divider, std::string& LeftPart, std::string& RightPart, BitfieldBool& ReturnValue)

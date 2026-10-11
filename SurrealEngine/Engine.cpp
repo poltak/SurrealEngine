@@ -1313,6 +1313,18 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 
 		LogMessage("Couldn't find map " + maparg);
 	}
+	else if (command == "deletegame" && args.size() == 2 && LaunchInfo.IsDeusEx())
+	{
+		// DDeusExGameEngine::DeleteGame: remove the folder of a numbered save game
+		int index = std::atoi(args[1].c_str());
+		if (index >= 0)
+		{
+			std::error_code ec;
+			fs::remove_all(DXSaveDirectory(index), ec);
+			LogMessage("Deus Ex save: deleted the save game " + std::to_string(index));
+		}
+		return {};
+	}
 	else if (command == "savegame" && (args.size() == 2 || args.size() == 3))
 	{
 

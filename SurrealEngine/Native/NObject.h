@@ -54,6 +54,7 @@ public:
 	static void CoordsToQuat_U227(Coords& C, quaternion& ReturnValue);
 	static void Cos(float A, float& ReturnValue);
 	static void CriticalDelete(UObject* Self, UObject* myObject);
+	static void GetConfig_DeusEx(const std::string& ConfigSection, const std::string& ConfigKey, std::string& ReturnValue);
 	static void Cross_VectorVector(const vec3& A, const vec3& B, vec3& ReturnValue);
 	static void Disable(UObject* Self, const NameString& ProbeFunc);
 	static void Divide_U227(std::string& Src, std::string& Divider, std::string& LeftPart, std::string& RightPart, BitfieldBool& ReturnValue); // Returns true if the string can be divided into two.

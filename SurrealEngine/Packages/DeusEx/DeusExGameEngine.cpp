@@ -234,18 +234,22 @@ void Engine::DXSaveGame(int directoryIndex, const std::string& description)
 	saveInfo->bCheatsEnabled() = player->HasProperty("bCheatsEnabled") && player->GetBool("bCheatsEnabled");
 	saveInfo->Snapshot() = nullptr; // To do: the 160x120 picture of the scene
 
-	// Index 0 asks for a new slot
+	// Index 0 asks for a new slot: the highest number of a save folder, plus one
 	std::error_code ec;
 	if (directoryIndex == 0)
 	{
-		for (int i = 1; i < 10000; i++)
+		int highest = 0;
+		fs::path saveFolder = packages->GetSaveFolderPath();
+		if (fs::is_directory(saveFolder, ec))
 		{
-			if (!fs::exists(DXSaveDirectory(i), ec))
+			for (const auto& entry : fs::directory_iterator(saveFolder, ec))
 			{
-				saveInfo->DirectoryIndex() = i;
-				break;
+				std::string name = entry.path().filename().string();
+				if (entry.is_directory(ec) && name.size() > 4 && StrTools::startswith(name, "Save", true))
+					highest = std::max(highest, std::atoi(name.c_str() + 4));
 			}
 		}
+		saveInfo->DirectoryIndex() = highest + 1;
 	}
 
 	fs::path slotDirectory = DXSaveDirectory(saveInfo->DirectoryIndex());
