@@ -145,6 +145,7 @@ void ULevel::TickActorsDeusEx(float elapsed)
 
 	// The list grows when an actor makes a new actor. The new actor ticks in this frame also.
 	waitingActors.clear();
+	inActorTick = true;
 	int updated = 0;
 	for (size_t i = 0; i < Actors.size(); i++)
 	{
@@ -152,7 +153,8 @@ void ULevel::TickActorsDeusEx(float elapsed)
 			updated++;
 	}
 
-	// The actors that waited for their owner. An actor whose owner does not tick in this frame stays out.
+	// The actors that waited for their owner, and the actors that came into the level after the loop above.
+	// An actor whose owner does not tick in this frame stays out.
 	while (!waitingActors.empty() && updated > 0)
 	{
 		Array<UActor*> waiting;
@@ -164,6 +166,7 @@ void ULevel::TickActorsDeusEx(float elapsed)
 				updated++;
 		}
 	}
+	inActorTick = false;
 	waitingActors.clear();
 }
 

@@ -239,7 +239,11 @@ void Engine::Run()
 
 		if (EntryLevel)
 			EntryLevel->Tick(entryLevelElapsed, m_GamePaused);
-		Level->Tick(levelElapsed, m_GamePaused);
+
+		// Deus Ex: as ULevel::Tick in Engine.dll, the actors get 0.4 seconds at most for one tick, so a frame that
+		// took long does not give one large step. The level time above goes on by the full time. The original also
+		// gives 0.005 seconds at least, which makes the game too fast above 200 frames per second. That part is left out.
+		Level->Tick(LaunchInfo.IsDeusEx() ? std::min(levelElapsed, 0.4f) : levelElapsed, m_GamePaused);
 
 		if (dxRootWindow)
 		{

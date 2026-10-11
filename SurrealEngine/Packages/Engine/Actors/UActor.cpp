@@ -83,6 +83,8 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	actor->Index = (int)XLevel()->Actors.size();
 	XLevel()->Actors.push_back(actor);
 	XLevel()->Collision.AddToCollision(actor);
+	if (engine->LaunchInfo.IsDeusEx())
+		XLevel()->ActorSpawned(actor);
 
 	actor->SetOwner(SpawnOwner.has_value() && SpawnOwner.value() ? *SpawnOwner : nullptr);
 

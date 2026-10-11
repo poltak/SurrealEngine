@@ -49,6 +49,9 @@ public:
 	// The value that bTicked of an actor has after its tick in the current frame
 	bool Ticked() const { return ticked; }
 
+	// Deus Ex: an actor that comes into the level while the level ticks its actors gets its tick in that frame
+	void ActorSpawned(UActor* actor) { if (inActorTick) waitingActors.push_back(actor); }
+
 	Array<LevelReachSpec> ReachSpecs;
 	UModel* Model = nullptr;
 
@@ -66,5 +69,6 @@ private:
 	void TickActorsDeusEx(float elapsed);
 
 	bool ticked = false;
+	bool inActorTick = false;
 	Array<UActor*> waitingActors;
 };
