@@ -5,6 +5,10 @@
 
 CollisionHitList OverlapAABBModel::TestOverlap(UModel* model, const vec3& center, const vec3& extents, bool visibilityOnly)
 {
+	// A mover can have no brush, or a brush with no nodes. Such a model has nothing to hit.
+	if (!model || model->Nodes.empty())
+		return {};
+
 	Model = model;
 	CollisionHitList hits;
 	TestOverlap(to_dvec3(center), to_dvec3(extents), visibilityOnly, &Model->Nodes.front(), hits);

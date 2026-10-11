@@ -5,6 +5,10 @@
 
 CollisionHitList TraceRayModel::Trace(UModel* model, const dvec3& origin, double tmin, const dvec3& dirNormalized, double tmax, bool visibilityOnly)
 {
+	// A mover can have no brush, or a brush with no nodes. Such a model has nothing to hit.
+	if (!model || model->Nodes.empty())
+		return {};
+
 	Model = model;
 	CollisionHitList hits;
 	Trace(origin, tmin, dirNormalized, tmax, visibilityOnly, &Model->Nodes.front(), hits);
@@ -14,6 +18,9 @@ CollisionHitList TraceRayModel::Trace(UModel* model, const dvec3& origin, double
 
 bool TraceRayModel::TraceAnyHit(UModel* model, const dvec3& origin, double tmin, const dvec3& dirNormalized, double tmax, bool visibilityOnly)
 {
+	if (!model || model->Nodes.empty())
+		return false;
+
 	Model = model;
 	return TraceAnyHit(origin, tmin, dirNormalized, tmax, visibilityOnly, &Model->Nodes.front());
 }
