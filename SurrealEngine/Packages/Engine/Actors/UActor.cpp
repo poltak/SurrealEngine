@@ -94,11 +94,9 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 		CallEvent(actor, EventName::PreBeginPlay);
 		CallEvent(actor, EventName::BeginPlay);
 
+		// A script can destroy the actor in these events. A decal does it when it finds no wall, for example.
 		if (actor->bDeleteMe())
-		{
-			LogMessage("Object deleted itself during Spawn!");
 			return nullptr;
-		}
 
 		// To do: we need to call EventName::EncroachingOn events here?
 
