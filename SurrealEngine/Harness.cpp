@@ -35,6 +35,21 @@
 
 static FILE* harnessLogFile = nullptr;
 
+#ifdef __APPLE__
+#include <mach/mach.h>
+static size_t ResidentMemoryMB()
+{
+	mach_task_basic_info_data_t info;
+	mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+	if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, (task_info_t)&info, &count) != KERN_SUCCESS)
+		return 0;
+	return (size_t)(info.resident_size / (1024 * 1024));
+}
+#else
+static size_t ResidentMemoryMB() { return 0; }
+#endif
+
+
 Harness& Harness::Get()
 {
 	static Harness harness;
@@ -420,6 +435,17 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
 		if (player && !e.Args.empty())
 			NPlayerPawn::ClientTravel(player, e.Args, (uint8_t)ETravelType::TRAVEL_Relative, true);
+	}
+	else if (e.Command == "mem")
+	{
+		// mem: log the memory that the process uses and the number of objects
+		size_t objects = 0;
+		for (GCObject* obj : GC::GetObjects())
+		{
+			(void)obj;
+			objects++;
+		}
+		LogMessage("Harness: mem resident=" + std::to_string(ResidentMemoryMB()) + " MB objects=" + std::to_string(objects) + " actors=" + std::to_string(engine->Level ? engine->Level->Actors.size() : 0));
 	}
 	else if (e.Command == "tracetex")
 	{
