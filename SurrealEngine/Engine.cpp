@@ -142,6 +142,16 @@ void Engine::Run()
 	OpenWindow();
 	Harness::Get().SettleWindowSize(this);
 
+	if (packages->MissingSESystemIni())
+	{
+		// First start: add the missing Subsystem entries to the ini of the engine, with the values of the game ini.
+		// Do it now and not at the end. A script can change a value for a short time, for example the intro of
+		// Deus Ex with SetInstantSoundVolume, and such a value must not go to the ini.
+		client->SaveConfig();
+		audiodev->SaveConfig();
+		renderdev->SaveConfig();
+	}
+
 	audiodev->InitDevice();
 	render = std::make_unique<RenderSubsystem>(window->GetRenderDevice());
 
@@ -335,13 +345,6 @@ void Engine::Run()
 	window->UnlockCursor();
 
 	LogMessage("Saving configurations...");
-	if (packages->MissingSESystemIni())
-	{
-		// Add the missing Subsystem entries
-		client->SaveConfig();
-		audiodev->SaveConfig();
-		renderdev->SaveConfig();
-	}
 	packages->SetIniValue("System", "Engine.SurrealWindowSystem", "WindowSystem", windowingSystemName);
 	packages->SaveAllIniFiles();
 
