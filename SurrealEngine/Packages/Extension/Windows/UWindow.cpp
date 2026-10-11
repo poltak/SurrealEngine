@@ -174,8 +174,12 @@ float UWindow::GetVirtualHeight()
 
 float UWindow::GetVirtualScale()
 {
-	// Assume it was originally designed for 800x600. Find the closest clean integer scale factor.
-	return std::max(std::round(engine->viewport->ViewportHeight() / 600.0f), 1.0f);
+	// XRootWindow::ResizeRoot in Extension.dll (build 1112fm): the multiplier is the number of times that 640x480
+	// fits in the canvas as a whole number. It is the same for both directions and it is 1 or more.
+	// A canvas of 640x480 or larger thus always gives a root window of 640x480 or larger, which the game screens need.
+	int hMultiplier = (int)(engine->viewport->ViewportWidth() / 640.0f);
+	int vMultiplier = (int)(engine->viewport->ViewportHeight() / 480.0f);
+	return (float)std::max(std::min(hMultiplier, vMultiplier), 1);
 }
 
 void UWindow::AddActorRef(UObject* refActor)
