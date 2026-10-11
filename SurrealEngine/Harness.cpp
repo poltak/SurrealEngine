@@ -27,7 +27,9 @@
 #include "Packages/Core/UFunction.h"
 #include "Utils/Logger.h"
 #include "Utils/File.h"
+#include "VM/Frame.h"
 #include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <map>
@@ -448,6 +450,32 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		}
 		LogMessage("Harness: mem resident=" + std::to_string(ResidentMemoryMB()) + " MB objects=" + std::to_string(objects) + " actors=" + std::to_string(engine->Level ? engine->Level->Actors.size() : 0));
 	}
+	else if (e.Command == "perf")
+	{
+		// perf: log the mean frame time in real time and the script work for each frame since the last "perf" command
+		double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		uint64_t frames = perfFrames - perfFramesAtReport;
+		if (perfTimeAtReport != 0.0 && frames > 0)
+		{
+			double ms = (now - perfTimeAtReport) * 1000.0 / frames;
+			char text[256];
+			snprintf(text, sizeof(text), "Harness: perf frames=%llu ms=%.2f fps=%.1f scriptcalls=%llu nativecalls=%llu statements=%llu (each frame)",
+				(unsigned long long)frames, ms, 1000.0 / ms,
+				(unsigned long long)((Frame::ScriptCallCount - perfScriptCalls) / frames),
+				(unsigned long long)((Frame::NativeCallCount - perfNativeCalls) / frames),
+				(unsigned long long)((Frame::StatementCount - perfStatements) / frames));
+			LogMessage(text);
+			// The totals are the same in each run of the same test, so a difference shows a change of behavior
+			snprintf(text, sizeof(text), "Harness: perf totals scriptcalls=%llu nativecalls=%llu statements=%llu",
+				(unsigned long long)Frame::ScriptCallCount, (unsigned long long)Frame::NativeCallCount, (unsigned long long)Frame::StatementCount);
+			LogMessage(text);
+		}
+		perfTimeAtReport = now;
+		perfFramesAtReport = perfFrames;
+		perfScriptCalls = Frame::ScriptCallCount;
+		perfNativeCalls = Frame::NativeCallCount;
+		perfStatements = Frame::StatementCount;
+	}
 	else if (e.Command == "tracetex")
 	{
 		// tracetex [YAWOFFSET] [PITCHOFFSET]: trace from the eye of the player and log what the line hits (actor, surface texture)
@@ -596,6 +624,8 @@ void Harness::Tick(Engine* engine)
 {
 	if (!initialized)
 		return;
+
+	perfFrames++;
 
 	if (CheckNatives)
 	{

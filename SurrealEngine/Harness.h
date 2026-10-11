@@ -86,4 +86,12 @@ private:
 	double nextWinSizeCheck = 1.5; // not in the first frames: the window manager can resize the new window at that time
 	std::vector<Event> events;
 	size_t nextEvent = 0;
+
+	// State of the "perf" command: the values at the last report
+	uint64_t perfFrames = 0;
+	uint64_t perfFramesAtReport = 0;
+	double perfTimeAtReport = 0.0;
+	uint64_t perfScriptCalls = 0;
+	uint64_t perfNativeCalls = 0;
+	uint64_t perfStatements = 0;
 };
