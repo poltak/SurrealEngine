@@ -940,7 +940,8 @@ void CocoaDisplayWindow::Show()
 
 void CocoaDisplayWindow::ShowFullscreen()
 {
-    if (impl->window)
+    // toggleFullScreen changes the state in the two directions, so do not call it for a window that is fullscreen already
+    if (impl->window && !IsWindowFullscreen())
     {
         [impl->window toggleFullScreen:nil];
     }
@@ -966,6 +967,12 @@ void CocoaDisplayWindow::ShowNormal()
 {
     if (impl->window)
     {
+        if (IsWindowFullscreen())
+        {
+            // Leave the fullscreen space. macOS puts the frame back that the window had before.
+            [impl->window toggleFullScreen:nil];
+            return;
+        }
         if ([impl->window isMiniaturized])
         {
             [impl->window deminiaturize:nil];

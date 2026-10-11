@@ -41,6 +41,16 @@ int GameWindow::GetPixelHeight()
 
 void GameWindow::ToggleWindowFullscreen(Size newResolution)
 {
+#ifdef __APPLE__
+	// A window on macOS goes to a fullscreen space of its own and always fills the screen there. macOS keeps the
+	// frame of the window and puts it back later. A change of the size here would replace that frame.
+	if (this->IsFullscreen())
+		this->ShowNormal();
+	else
+		this->ShowFullscreen();
+	return;
+#endif
+
 	if (this->IsFullscreen())
 	{
 		// First switch to normal
@@ -297,6 +307,12 @@ void GameWindow::SetResolution(const std::string& resolutionString)
 	Size parsedResolution = ParseResolutionString(resolutionString);
 	if (parsedResolution == Size(0, 0))
 		return;
+
+#ifdef __APPLE__
+	// A fullscreen window on macOS always has the size of the screen
+	if (IsFullscreen())
+		return;
+#endif
 
 	Rect windowRect = GetFrameGeometry();
 
