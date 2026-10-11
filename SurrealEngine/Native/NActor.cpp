@@ -980,21 +980,22 @@ void NActor::RandomBiasedRotation(
 	ReturnValue = UObject::Cast<UActor>(Self)->RandomBiasedRotation(centralYaw, yawDistribution, centralPitch, pitchDistribution);
 }
 
+// Deus Ex: the sliders of the sound settings screen. The new volume is heard at once, also for sounds that play now.
+
 void NActor::SetInstantMusicVolume(UObject* Self, uint8_t newMusicVolume)
 {
-	// Deus Ex
+	engine->audiodev->MusicVolume = newMusicVolume;
 	engine->audiodev->GetDevice()->SetMusicVolume(static_cast<float>(newMusicVolume) / 255.f);
 }
 
 void NActor::SetInstantSoundVolume(UObject* Self, uint8_t newSoundVolume)
 {
-	// Deus Ex
-	engine->audiodev->GetDevice()->SetSoundVolume(static_cast<float>(newSoundVolume) / 255.f);
+	engine->audiodev->SoundVolume = newSoundVolume;
 }
 
 void NActor::SetInstantSpeechVolume(UObject* Self, uint8_t newSpeechVolume)
 {
-	LogUnimplemented("Actor.SetInstantSpeechVolume");
+	engine->audiodev->SpeechVolume = newSpeechVolume;
 }
 
 void NActor::StopSound_Deus(UObject* Self, int Id)
