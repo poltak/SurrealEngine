@@ -122,11 +122,13 @@ void RenderSubsystem::DrawActor(UActor* actor, bool WireFrame, bool ClearZ)
 	if (ClearZ)
 		Device->ClearZ();
 
+	// The weapon of the player is a hidden actor. Other callers draw actors that are not hidden.
+	bool hidden = actor->bHidden();
 	actor->bHidden() = false;
 	VisibleMesh vismesh;
 	if (vismesh.DrawMesh(&MainFrame, actor, WireFrame, false))
 		vismesh.DrawMesh(&MainFrame, actor, WireFrame, true);
-	actor->bHidden() = true;
+	actor->bHidden() = hidden;
 
 	Device->SetSceneNode(&Canvas.Frame);
 }
@@ -155,11 +157,13 @@ void RenderSubsystem::DrawClippedActor(UActor* actor, bool WireFrame, int X, int
 	if (ClearZ)
 		Device->ClearZ();
 
+	// The weapon of the player is a hidden actor. Other callers draw actors that are not hidden.
+	bool hidden = actor->bHidden();
 	actor->bHidden() = false;
 	VisibleMesh vismesh;
 	if (vismesh.DrawMesh(&MainFrame, actor, WireFrame, false))
 		vismesh.DrawMesh(&MainFrame, actor, WireFrame, true);
-	actor->bHidden() = true;
+	actor->bHidden() = hidden;
 
 	Device->SetSceneNode(&Canvas.Frame);
 }
