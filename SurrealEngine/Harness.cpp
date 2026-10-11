@@ -505,19 +505,30 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	}
 	else if (e.Command == "setprop")
 	{
-		// setprop <class> <property> <value>: set a property on each live actor of that class
+		// setprop <class> <property> <value>: set a property on each live actor of that class.
+		// <property>[<index>] sets one element of a fixed-size array.
 		std::string className, propName, value;
 		std::istringstream parts(e.Args);
 		parts >> className >> propName;
 		std::getline(parts, value);
 		size_t first = value.find_first_not_of(" \t");
 		value = first == std::string::npos ? std::string() : value.substr(first);
+		int index = 0;
+		size_t bracket = propName.find('[');
+		if (bracket != std::string::npos)
+		{
+			index = std::atoi(propName.c_str() + bracket + 1);
+			propName = propName.substr(0, bracket);
+		}
 		int count = 0;
 		for (UActor* actor : engine->Level->Actors)
 		{
 			if (actor && actor->IsA(className) && actor->HasProperty(propName))
 			{
-				actor->SetPropertyFromString(propName, value);
+				UProperty* prop = actor->GetMemberProperty(propName);
+				if (index < 0 || index >= prop->ArrayDimension)
+					continue;
+				prop->SetValueFromString(static_cast<uint8_t*>(actor->PropertyData.Ptr(prop)) + index * prop->ElementSize(), value);
 				count++;
 			}
 		}
