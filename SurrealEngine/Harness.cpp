@@ -725,6 +725,33 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			Dump::Window(root, root, 0);
 		}
 	}
+	else if (e.Command == "cursor")
+	{
+		// cursor: log the mouse cursor that the interface shows: the texture, its hot spot, its color, its shadow
+		// texture and the class of the window under the mouse
+		URootWindow* root = engine->dxRootWindow;
+		if (!root)
+		{
+			LogMessage("Harness: cursor: no root window");
+		}
+		else if (!root->IsCursorVisible())
+		{
+			LogMessage("Harness: cursor hidden");
+		}
+		else
+		{
+			float relativeX = 0.0f, relativeY = 0.0f, hotX = 0.0f, hotY = 0.0f;
+			Color color = { 255, 255, 255, 255 };
+			UTexture* shadow = nullptr;
+			UWindow* focus = root->GetCursorFocus(relativeX, relativeY);
+			UTexture* cursor = focus->QueryCursor(relativeX, relativeY, hotX, hotY, color, shadow);
+			char buf[400];
+			snprintf(buf, sizeof(buf), "Harness: cursor %s hot=%d,%d color=%d,%d,%d shadow=%s window=%s",
+				cursor ? cursor->Name.ToString().c_str() : "none", (int)hotX, (int)hotY, color.R, color.G, color.B,
+				shadow ? shadow->Name.ToString().c_str() : "none", UObject::GetUClassName(focus).ToString().c_str());
+			LogMessage(buf);
+		}
+	}
 	else if (e.Command == "showtex")
 	{
 		// showtex PKG.NAME ...: find each texture in its package. A fire texture then shows how its sparks look.

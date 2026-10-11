@@ -44,6 +44,8 @@ class UActor;
 //                                   the start of the text of a text window, the row count of a list and the
 //                                   state of a toggle or checkbox, the thumb position of a scale, and the
 //                                   child position of a clip window
+//   cursor                          log the mouse cursor that the interface shows: texture, hot spot, color,
+//                                   shadow texture and the class of the window under the mouse
 //   log TEXT | quit
 class Harness
 {
