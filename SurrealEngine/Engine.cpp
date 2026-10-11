@@ -1958,7 +1958,10 @@ void Engine::OnWindowMouseDown(const Point& pos, EInputKey key)
 		return;
 
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowMouseDown(pos, key))
+	{
+		ReleaseGameInput();
 		return;
+	}
 
 	InputEvent(key, IST_Press);
 }
@@ -1969,7 +1972,10 @@ void Engine::OnWindowMouseDoubleclick(const Point& pos, EInputKey key)
 		return;
 
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowMouseDoubleclick(pos, key))
+	{
+		ReleaseGameInput();
 		return;
+	}
 
 	// Double click event sequence is: mouse down, up, doubleclick, up
 	// Since we don't have double click events in the UE1 event system, the second click
@@ -1986,7 +1992,10 @@ void Engine::OnWindowMouseUp(const Point& pos, EInputKey key)
 		return;
 
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowMouseUp(pos, key))
+	{
+		ReleaseGameInput();
 		return;
+	}
 
 	InputEvent(key, IST_Release);
 }
@@ -2000,7 +2009,10 @@ void Engine::OnWindowMouseWheel(const Point& pos, EInputKey key)
 		return;
 
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowMouseWheel(pos, key))
+	{
+		ReleaseGameInput();
 		return;
+	}
 
 	InputEvent(key, IST_Press);
 	InputEvent(key, IST_Release);
@@ -2048,7 +2060,10 @@ void Engine::OnWindowKeyDown(EInputKey key)
 	}
 
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowKeyDown(key))
+	{
+		ReleaseGameInput();
 		return;
+	}
 
 	InputEvent(key, IST_Press);
 }
@@ -2062,7 +2077,10 @@ void Engine::OnWindowKeyUp(EInputKey key)
 		return;
 
 	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowKeyUp(key))
+	{
+		ReleaseGameInput();
 		return;
+	}
 
 	InputEvent(key, IST_Release);
 }
@@ -2127,7 +2145,25 @@ void Engine::InputEvent(EInputKey key, EInputType type, int delta)
 		return;
 
 	bool handled = CallEvent(console, EventName::KeyEvent, { ExpressionValue::ByteValue(key), ExpressionValue::ByteValue(type), ExpressionValue::FloatValue((float)delta) }).ToBool();
-	
+
+	// As XInputExt::Process in Extension.dll: a key that is down does not start its command again when the system
+	// repeats the key, and a key that is not down gives no release
+	if (!handled && engine->dxRootWindow && key >= 0 && key < 256)
+	{
+		if (type == EInputType::IST_Press)
+		{
+			if (gameKeyDown[key])
+				return;
+			gameKeyDown[key] = true;
+		}
+		else if (type == EInputType::IST_Release)
+		{
+			if (!gameKeyDown[key])
+				return;
+			gameKeyDown[key] = false;
+		}
+	}
+
 	if (!handled)
 	{
 		if ((type == EInputType::IST_Press || type == EInputType::IST_Axis) && key >= 0 && key < 256)
@@ -2179,6 +2215,25 @@ void Engine::InputEvent(EInputKey key, EInputType type, int delta)
 			}
 		}
 	}
+}
+
+// As XInputExt::Process in Extension.dll: when the window system of Deus Ex takes a key or a mouse button, the game
+// input lets go of each key that it holds. If it did not, a movement key that the player releases while a screen is
+// open stays active after the screen closes, and the player walks with no key down.
+void Engine::ReleaseGameInput()
+{
+	for (bool& down : gameKeyDown)
+		down = false;
+
+	if (viewport && viewport->Actor())
+	{
+		for (auto& it : activeInputButtons)
+			viewport->Actor()->SetBool(it.first, false);
+		for (auto& it : activeInputAxes)
+			viewport->Actor()->SetFloat(it.first, 0.0f);
+	}
+	activeInputButtons.clear();
+	activeInputAxes.clear();
 }
 
 bool Engine::ExecCommand(const Array<std::string>& args)

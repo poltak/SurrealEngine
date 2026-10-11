@@ -121,6 +121,7 @@ public:
 
 	void Key(std::string key);
 	void InputEvent(EInputKey key, EInputType type, int delta = 0);
+	void ReleaseGameInput();
 
 	void OnWindowPaint() override;
 	void OnWindowMouseMove(const Point& pos) override;
@@ -230,6 +231,7 @@ public:
 		EInputKey Key;
 	};
 
+	bool gameKeyDown[256] = {};
 	std::map<std::string, EInputKey> activeInputButtons;
 	std::map<std::string, ActiveInputAxis> activeInputAxes;
 
