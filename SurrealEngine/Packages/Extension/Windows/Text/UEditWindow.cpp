@@ -469,6 +469,10 @@ void UEditWindow::ActivateEdit()
 
 bool UEditWindow::MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks)
 {
+	// Other buttons go to the windows above. The mouse wheel then moves the scroll area of the field.
+	if (button != IK_LeftMouse)
+		return ULargeTextWindow::MouseButtonPressed(pointX, pointY, button, numClicks);
+
 	SetFocusWindow(this);
 	ULargeTextWindow::MouseButtonPressed(pointX, pointY, button, numClicks);
 	return true;
@@ -476,6 +480,9 @@ bool UEditWindow::MouseButtonPressed(float pointX, float pointY, EInputKey butto
 
 bool UEditWindow::MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks)
 {
+	if (button != IK_LeftMouse)
+		return ULargeTextWindow::MouseButtonReleased(pointX, pointY, button, numClicks);
+
 	ULargeTextWindow::MouseButtonReleased(pointX, pointY, button, numClicks);
 	return true;
 }
