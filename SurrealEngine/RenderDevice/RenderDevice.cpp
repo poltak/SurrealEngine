@@ -2,6 +2,7 @@
 #include "Precomp.h"
 #include "RenderDevice.h"
 #include "LauncherSettings.h"
+#include "Harness.h"
 #include "Vulkan/VulkanRenderDevice.h"
 #include "OpenGL/GLRenderDevice.h"
 #ifdef WIN32
@@ -15,7 +16,7 @@
 RenderDevice::RenderDevice()
 {
 	const auto& settings = LauncherSettings::Get();
-	UseVSync = settings.RenderDevice.UseVSync;
+	UseVSync = settings.RenderDevice.UseVSync && !Harness::Get().NoVSync;
 	Hdr = settings.RenderDevice.Hdr;
 	HdrScale = settings.RenderDevice.HdrScale;
 	Bloom = settings.RenderDevice.Bloom;

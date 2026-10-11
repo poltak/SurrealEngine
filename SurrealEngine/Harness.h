@@ -18,6 +18,7 @@ class UActor;
 //   --shot-first=<s>        time of the first automatic frame
 //   --nograb                keep the mouse cursor free
 //   --mute                  no sound output
+//   --novsync               do not wait for the display after each frame
 //   --winsize=<W>x<H>       open the window with this size in pixels and keep it. The game starts when the
 //                           window manager has stopped changing the size of the new window.
 //   --wait-file=<path>      with --winsize: do not start the game before this file is there. The test runner makes
@@ -68,6 +69,7 @@ public:
 	bool CheckNatives = false; // --checknatives: log each native script function that has no handler, then quit
 	bool ShowStats = false;  // --stats: show the frame rate and object counts on the screen (same as the console command "timedemo 1")
 	bool KeepLevelData = false; // --keep-level-data: do not free the lightmaps and the geometry of a level that the engine leaves
+	bool NoVSync = false;    // --novsync: do not wait for the display after each frame. Then a frame time is only the work of the engine.
 
 private:
 	struct Event
