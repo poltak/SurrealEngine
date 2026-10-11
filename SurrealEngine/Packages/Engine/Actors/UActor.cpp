@@ -16,7 +16,7 @@
 #include "VM/ScriptCall.h"
 #include "VM/Frame.h"
 
-UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std::optional<NameString> SpawnTag, std::optional<vec3> SpawnLocation, std::optional<Rotator> SpawnRotation)
+UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std::optional<NameString> SpawnTag, std::optional<vec3> SpawnLocation, std::optional<Rotator> SpawnRotation, bool noCollisionFail)
 {
 	if (!SpawnClass || SpawnClass->ClsFlags & ClassFlags::Abstract)
 	{
@@ -34,12 +34,15 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	if (bCollideWorld || bCollideWhenPlacing)
 	{
 		auto result = CheckLocation(location, radius, height, bCollideWorld || bCollideWhenPlacing);
-		if (!result.first)
+		if (result.first)
+		{
+			location = result.second;
+		}
+		else if (!noCollisionFail)
 		{
 			LogMessage("Could not find usable location when trying to spawn: " + SpawnClass->Name.ToString());
 			return nullptr;
 		}
-		location = result.second;
 	}
 
 	// To do: package needs to be grabbed from outer, or the "transient package" if it is None, a virtual package for runtime objects

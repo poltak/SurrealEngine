@@ -9,8 +9,8 @@ void UDXSaveInfo::UpdateTimeStamp()
 	std::time_t now = std::time(nullptr);
 	std::tm* timedesc = std::localtime(&now);
 
-	Year() = timedesc->tm_year;
-	Month() = timedesc->tm_mon;
+	Year() = timedesc->tm_year + 1900;
+	Month() = timedesc->tm_mon + 1;
 	Day() = timedesc->tm_mday;
 	Hour() = timedesc->tm_hour;
 	Minute() = timedesc->tm_min;

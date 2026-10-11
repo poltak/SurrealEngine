@@ -32,6 +32,8 @@ public:
 
 	const NameString& GetName(int index) const;
 	int GetVersion() const { return Version; }
+	// A new empty package gets the file format of an existing package, so that the game can read its file again
+	void CopyFormatFrom(const Package* other) { Version = other->Version; LicenseeMode = other->LicenseeMode; }
 	NameString GetPackageName() const { return Name; }
 	std::string GetPackageFileName() const { return FileName; }
 	std::string GetPackageFilePath() const { return FilePath; }

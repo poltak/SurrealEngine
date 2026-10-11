@@ -12,6 +12,7 @@ public:
 	UnrealURL(std::string urlString);
 
 	void AddOrReplaceOption(const std::string& newvalue);
+	void RemoveOption(const std::string& name);
 	bool HasOption(const std::string& name) const;
 	std::string GetOption(std::string name) const;
 	std::string GetAddressURL() const;

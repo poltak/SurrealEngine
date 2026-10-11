@@ -51,6 +51,7 @@
 #include "Packages/ConSys/Events/UConEventTransferObject.h"
 #include "Packages/ConSys/Events/UConEventCheckObject.h"
 #include "Packages/DeusEx/UDeusExLevelInfo.h"
+#include "Packages/DeusEx/DeusExTravel.h"
 #include "Packages/DeusEx/UDeusExSaveInfo.h"
 #include "ObjectTravelInfo.h"
 #include "Math/quaternion.h"
@@ -293,6 +294,10 @@ void Engine::Run()
 				}
 			}
 		}
+
+		// Deus Ex has its own rules for a travel: save games, and map states that stay in a mission
+		if (LaunchInfo.IsDeusEx() && !ClientTravelInfo.URL.Empty())
+			DXBrowse();
 
 		if (ClientTravelInfo.URL.HasOption("restart"))
 		{
@@ -863,7 +868,8 @@ void Engine::PossessSavedPlayer()
 		if (!pawnExt->FlagBase())
 		{
 			auto flagBaseCls = packages->FindClass("Extension.FlagBase");
-			pawnExt->FlagBase() = UObject::Cast<UFlagBase>(packages->GetTransientPackage()->NewObject("FlagBase", flagBaseCls, ObjectFlags::Transient));
+			pawnExt->FlagBase() = UObject::Cast<UFlagBase>(pawn->package->NewObject("FlagBase", flagBaseCls, ObjectFlags::NoFlags));
+			pawnExt->FlagBase()->Outer() = pawn;
 		}
 	}
 
@@ -885,6 +891,10 @@ void Engine::SaveGameToSlot(int32_t slotNum, const std::string& saveDescription)
 		fs::create_directory(saveFolderPath);
 
 	if (packages->IsDeusEx())
+	{
+		const_cast<Engine*>(this)->DXSaveGame(slotNum, saveDescription);
+	}
+	else if (false)
 	{
 		// Saving a game on Deus Ex does the following:
 		// - Create a folder using the slotNum (e.g. 1 -> "Save0001")
@@ -926,6 +936,19 @@ void Engine::SaveGameToSlot(int32_t slotNum, const std::string& saveDescription)
 
 std::map<std::string, std::string> Engine::CreateTravelInfo(bool transferItems)
 {
+	if (LaunchInfo.IsDeusEx())
+	{
+		// Deus Ex makes travel info only for a travel with items. The info has the player of the viewport only.
+		std::map<std::string, std::string> dxTravelInfo;
+		UPlayerPawn* pawn = transferItems ? UObject::TryCast<UPlayerPawn>(viewport->Actor()) : nullptr;
+		if (pawn)
+		{
+			std::string playerName = pawn->PlayerReplicationInfo() ? pawn->PlayerReplicationInfo()->PlayerName() : std::string("Player");
+			dxTravelInfo[playerName] = DeusExTravel::Create(pawn);
+		}
+		return dxTravelInfo;
+	}
+
 	auto travelInfo = Level->TravelInfo;
 	for (UActor* actor : Level->Actors)
 	{
@@ -980,11 +1003,13 @@ void Engine::LoginPlayer()
 
 	if (auto pawnExt = UObject::TryCast<UPlayerPawnExt>(pawn))
 	{
-		// Unclear if this is how DeusEx spawned this object
+		// The constructor of APlayerPawnExt makes the flag base with the pawn as its outer object.
+		// The flag base is part of the level package, so that a save of the level includes the flags.
 		if (!pawnExt->FlagBase())
 		{
 			auto flagBaseCls = packages->FindClass("Extension.FlagBase");
-			pawnExt->FlagBase() = UObject::Cast<UFlagBase>(packages->GetTransientPackage()->NewObject("FlagBase", flagBaseCls, ObjectFlags::Transient));
+			pawnExt->FlagBase() = UObject::Cast<UFlagBase>(pawn->package->NewObject("FlagBase", flagBaseCls, ObjectFlags::NoFlags));
+			pawnExt->FlagBase()->Outer() = pawn;
 		}
 	}
 
@@ -996,6 +1021,37 @@ void Engine::LoginPlayer()
 	// Transfer travel actors to the new map
 
 	CallEvent(pawn, EventName::TravelPreAccept);
+
+	if (LaunchInfo.IsDeusEx())
+	{
+		// ULevel::SpawnPlayActor of the Deus Ex Engine.dll: the pawn accepts the travel info also when it was
+		// in the map already (a map state from Save/Current). Only the option "loadonly" stops it.
+		Array<UObject*> dxObjects;
+		if (!url.HasOption("loadonly"))
+		{
+			std::string playerName = url.GetOption("Name");
+			auto it = travelInfo.find(playerName);
+			if (it == travelInfo.end())
+				it = travelInfo.begin(); // A game for one player uses the first entry
+			if (it != travelInfo.end())
+				dxObjects = DeusExTravel::Accept(pawn, it->second);
+		}
+
+		// The events go to the objects in reverse order. The inventory then keeps its order.
+		for (size_t i = dxObjects.size(); i > 0; i--)
+			CallEvent(dxObjects[i - 1], EventName::TravelPreAccept);
+
+		CallEvent(LevelInfo->Game(), EventName::AcceptInventory, { ExpressionValue::ObjectValue(pawn) });
+
+		for (size_t i = dxObjects.size(); i > 0; i--)
+			CallEvent(dxObjects[i - 1], EventName::TravelPostAccept);
+
+		CallEvent(pawn, EventName::TravelPostAccept);
+		CallEvent(LevelInfo->Game(), EventName::PostLogin, { ExpressionValue::ObjectValue(pawn) });
+
+		render->OnMapLoaded();
+		return;
+	}
 
 	Array<UObject*> acceptedObjects;
 	if (actorActuallySpawned && ClientTravelInfo.TravelType == ETravelType::TRAVEL_Relative)
@@ -2111,6 +2167,13 @@ void Engine::LinkActorsToLevel()
 	{
 		if (actor)
 			actor->RelinkBasedActor();
+	}
+
+	// ChildActors (which actors do I own) has the same problem: only Owner() is a property.
+	for (UActor* actor : Level->Actors)
+	{
+		if (actor && actor->Owner() && std::find(actor->Owner()->ChildActors.begin(), actor->Owner()->ChildActors.end(), actor) == actor->Owner()->ChildActors.end())
+			actor->Owner()->AddChildActor(actor);
 	}
 }
 

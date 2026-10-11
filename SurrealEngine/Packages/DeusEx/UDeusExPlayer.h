@@ -29,6 +29,7 @@ public:
 	using UPlayerPawnExt::UPlayerPawnExt;
 
 	void ConBindEvents();
+	UObject* CreatePlayerStateObject(const char* className);
 	UObject* CreateDataVaultImageNoteObject();
 	UObject* CreateDumpLocationObject();
 	UObject* CreateGameDirectoryObject();

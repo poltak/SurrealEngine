@@ -113,6 +113,24 @@ void UnrealURL::AddOrReplaceOption(const std::string& newvalue)
 	}
 }
 
+void UnrealURL::RemoveOption(const std::string& name)
+{
+	std::string lowerName = name;
+	for (char& c : lowerName) c = std::tolower(c);
+
+	for (size_t i = Options.size(); i > 0; i--)
+	{
+		const std::string& option = Options[i - 1];
+		if ((option.size() >= lowerName.size() + 1 && option[lowerName.size()] == '=') || option.size() == lowerName.size())
+		{
+			std::string key = option.substr(0, lowerName.size());
+			for (char& c : key) c = std::tolower(c);
+			if (key == lowerName)
+				Options.erase(Options.begin() + (i - 1));
+		}
+	}
+}
+
 bool UnrealURL::HasOption(const std::string& name) const
 {
 	for (const std::string& option : Options)

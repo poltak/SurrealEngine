@@ -12,10 +12,19 @@ void UDeusExPlayer::ConBindEvents()
 	DeusExConBindEvents();
 }
 
+// Makes an object that is part of the game state of this player. The object is in the package of the
+// player with the player as its outer object, so that a save of the level includes it.
+UObject* UDeusExPlayer::CreatePlayerStateObject(const char* className)
+{
+	auto cls = engine->packages->FindClass(className);
+	UObject* obj = package->NewObject(NameString(), cls, ObjectFlags::NoFlags);
+	obj->Outer() = this;
+	return obj;
+}
+
 UObject* UDeusExPlayer::CreateDataVaultImageNoteObject()
 {
-	auto cls = engine->packages->FindClass("DeusEx.DataVaultImageNote");
-	return engine->packages->GetTransientPackage()->NewObject("DataVaultImageNote", cls, ObjectFlags::Transient);
+	return CreatePlayerStateObject("DeusEx.DataVaultImageNote");
 }
 
 UObject* UDeusExPlayer::CreateDumpLocationObject()
@@ -37,25 +46,26 @@ UObject* UDeusExPlayer::CreateGameDirectoryObject()
 
 UObject* UDeusExPlayer::CreateHistoryEvent()
 {
-	auto cls = engine->packages->FindClass("ConSys.ConHistoryEvent");
-	return engine->packages->GetTransientPackage()->NewObject("ConHistoryEvent", cls, ObjectFlags::Transient);
+	return CreatePlayerStateObject("ConSys.ConHistoryEvent");
 }
 
 UObject* UDeusExPlayer::CreateHistoryObject()
 {
-	auto cls = engine->packages->FindClass("ConSys.ConHistory");
-	return Cast<UConHistory>(engine->packages->GetTransientPackage()->NewObject("ConHistory", cls, ObjectFlags::Transient));
+	return CreatePlayerStateObject("ConSys.ConHistory");
 }
 
 UObject* UDeusExPlayer::CreateLogObject()
 {
-	auto cls = engine->packages->FindClass("DeusEx.DeusExLog");
-	return engine->packages->GetTransientPackage()->NewObject("DeusExLog", cls, ObjectFlags::Transient);
+	return CreatePlayerStateObject("DeusEx.DeusExLog");
 }
 
 void UDeusExPlayer::DeleteSaveGameFiles(std::optional<std::string> saveDirectory)
 {
-	LogUnimplemented("DeusExPlayer.DeleteSaveGameFiles");
+	// No directory means Save/Current, the saved map states of the current mission
+	if (saveDirectory && !saveDirectory->empty())
+		engine->DXDeleteSaveGameFiles(fs::path(*saveDirectory));
+	else
+		engine->DXDeleteSaveGameFiles(engine->DXSaveDirectory(-2));
 }
 
 std::string UDeusExPlayer::GetDeusExVersion()
@@ -66,7 +76,7 @@ std::string UDeusExPlayer::GetDeusExVersion()
 void UDeusExPlayer::SaveGame(int saveIndex, std::optional<std::string> saveDesc)
 {
 	engine->SaveGameInfo.SaveGameSlot = saveIndex;
-	engine->SaveGameInfo.SaveGameDescription = *saveDesc;
+	engine->SaveGameInfo.SaveGameDescription = saveDesc ? *saveDesc : std::string();
 }
 
 NameString UDeusExPlayer::SetBoolFlagFromString(const std::string& flagNameString, bool bValue)

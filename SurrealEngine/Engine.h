@@ -11,6 +11,7 @@
 #include "GameFolder.h"
 #include <set>
 #include <list>
+#include <filesystem>
 
 class RenderSubsystem;
 class PackageManager;
@@ -80,6 +81,17 @@ public:
 	void UnloadMap();
 	void LoginPlayer();
 	void PossessSavedPlayer();
+
+	// Deus Ex save system (Packages/DeusEx/DeusExGameEngine.cpp)
+	std::filesystem::path DXSaveDirectory(int directoryIndex) const;
+	void DXDeleteSaveGameFiles(const std::filesystem::path& directory);
+	void DXCopySaveGameFiles(const std::filesystem::path& source, const std::filesystem::path& dest);
+	int DXGetNextMissionNumber(const std::string& mapName) const;
+	void DXPruneTravelActors();
+	void DXSaveCurrentLevel(int directoryIndex);
+	void DXSaveGame(int directoryIndex, const std::string& description);
+	void DXLoadSavedLevel(Package* package, const UnrealURL& url, const std::map<std::string, std::string>& travelInfo);
+	bool DXBrowse();
 
 	UObject* FindObject(NameString name, NameString className);
 

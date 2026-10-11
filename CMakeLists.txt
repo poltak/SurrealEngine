@@ -475,6 +475,9 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/Packages/DeusEx/AIEventManager.cpp
 	SurrealEngine/Packages/DeusEx/AIEventManager.h
 	SurrealEngine/Packages/DeusEx/AIPerception.cpp
+	SurrealEngine/Packages/DeusEx/DeusExGameEngine.cpp
+	SurrealEngine/Packages/DeusEx/DeusExTravel.cpp
+	SurrealEngine/Packages/DeusEx/DeusExTravel.h
 	SurrealEngine/Packages/DeusEx/UDeusExDecoration.cpp
 	SurrealEngine/Packages/DeusEx/UDeusExDecoration.h
 	SurrealEngine/Packages/DeusEx/UDeusExLevelInfo.h

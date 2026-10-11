@@ -38,8 +38,17 @@ void NPlayerPawn::RegisterFunctions()
 
 void NPlayerPawn::ClientTravel(UObject* Self, const std::string& URL, uint8_t TravelType, bool bItems)
 {
-	if (engine->LaunchInfo.IsDeusEx())
-		CallEvent(Self, "PreTravel", {});
+	if (engine->LaunchInfo.IsDeusEx() && engine->Level)
+	{
+		// UGameEngine::SetClientTravel of the Deus Ex Engine.dll calls PreTravel on each actor that has this function.
+		// The player, the mission script and some augmentations use it.
+		for (size_t i = 0; i < engine->Level->Actors.size(); i++)
+		{
+			UActor* actor = engine->Level->Actors[i];
+			if (actor && !actor->bDeleteMe())
+				CallEvent(actor, "PreTravel", {});
+		}
+	}
 	engine->ClientTravel(URL, static_cast<ETravelType>(TravelType), bItems);
 }
 
