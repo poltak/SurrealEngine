@@ -31,7 +31,12 @@ void UActor::TickSwimming(float elapsed)
 	float timeLeft = elapsed;
 	vec3 vel = Velocity() + zone->ZoneVelocity() * elapsed * 25.0f;
 
-	vel.z += zone->ZoneGravity().z * (1.0f - Buoyancy() / Mass()) * elapsed;
+	// APawn::calcVelocity with bBuoyant: gravity times (1 - Buoyancy / Mass).
+	// The scout of a Deus Ex pawn generator has no mass. The division gives NaN then, also in the original, where the
+	// generator sets the location of its scout again before each use. Here a NaN location makes each collision trace
+	// very slow, so a pawn with no mass gets no buoyancy.
+	if (Mass() != 0.0f)
+		vel.z += zone->ZoneGravity().z * (1.0f - Buoyancy() / Mass()) * elapsed;
 
 	//required for "stepping out of water"
 	float gravityDirection = zone->ZoneGravity().z > 0.0f ? 1.0f : -1.0f;

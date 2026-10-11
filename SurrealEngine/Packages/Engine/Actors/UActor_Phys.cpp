@@ -446,6 +446,10 @@ CollisionHit UActor::TryMove(const vec3& delta, bool dryRun, bool isOwnBaseBlock
 	if (dot(delta, delta) < 0.00000001f)
 		return {};
 
+	// A move that is not a number must not go into the collision code: a trace with NaN goes through the full level
+	if (!std::isfinite(delta.x + delta.y + delta.z))
+		return {};
+
 	// Analyze what we will hit if we move as requested and stop if it is the level or a blocking actor
 	bool useBlockPlayers = UObject::TryCast<UPlayerPawn>(this) || UObject::TryCast<UProjectile>(this);
 	CollisionHit blockingHit;
