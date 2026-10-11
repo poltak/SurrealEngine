@@ -298,6 +298,8 @@ public:
 	virtual bool ListSelectionChanged(UWindow* list, int numSelections, int focusRowId);
 	virtual bool TextChanged(UWindow* edit, bool bModified);
 	virtual bool EditActivated(UWindow* edit, bool bModified);
+	virtual UTexture* CursorRequested(UWindow* win, float pointX, float pointY, float& hotX, float& hotY, Color& newColor, UTexture*& shadowTexture);
+	UTexture* QueryCursor(float pointX, float pointY, float& hotX, float& hotY, Color& color, UTexture*& shadowTexture);
 	virtual void DrawWindow(UGC* gc);
 	void DrawRawBackground(UGC* gc);
 	void DrawWindowEvent(UGC* gc);

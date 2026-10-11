@@ -3,6 +3,7 @@
 #include "UEditWindow.h"
 #include "Engine.h"
 #include "Packages/Extension/Windows/UGC.h"
+#include "Packages/Extension/Windows/TabGroup/URootWindow.h"
 #include "Packages/Engine/Resources/UFont.h"
 #include "Packages/Engine/Resources/USound.h"
 
@@ -259,12 +260,30 @@ void UEditWindow::PlayEditSound(UObject* sound, std::optional<float> Volume, std
 
 void UEditWindow::SetEditCursor(std::optional<UObject*> newCursor, std::optional<UObject*> newCursorShadow, std::optional<Color> NewColor)
 {
-	if (newCursor.has_value())
-		editCursor() = UObject::Cast<UTexture>(newCursor.value());
-	if (newCursorShadow.has_value())
-		editCursorShadow() = UObject::Cast<UTexture>(newCursorShadow.value());
-	if (NewColor.has_value())
-		editCursorColor() = NewColor.value();
+	// As XEditWindow::execSetEditCursor: an argument that the script leaves out gets its default
+	editCursor() = newCursor ? UObject::Cast<UTexture>(*newCursor) : nullptr;
+	editCursorShadow() = newCursorShadow ? UObject::Cast<UTexture>(*newCursorShadow) : nullptr;
+	editCursorColor() = NewColor ? *NewColor : Color{ 255, 255, 255, 255 };
+}
+
+// As XEditWindow::CursorRequested: a field that the player can edit shows its text cursor, or the text cursor of
+// the root window when the field has none
+UTexture* UEditWindow::CursorRequested(UWindow* win, float pointX, float pointY, float& hotX, float& hotY, Color& newColor, UTexture*& shadowTexture)
+{
+	if (bEditable())
+	{
+		UTexture* cursor = editCursor();
+		shadowTexture = editCursorShadow();
+		newColor = editCursorColor();
+		if (!cursor)
+		{
+			URootWindow* root = GetRootWindow();
+			cursor = root ? root->defaultEditCursor() : nullptr;
+		}
+		if (cursor)
+			return cursor;
+	}
+	return ULargeTextWindow::CursorRequested(win, pointX, pointY, hotX, hotY, newColor, shadowTexture);
 }
 
 void UEditWindow::SetEditSounds(std::optional<UObject*> newTypeSound, std::optional<UObject*> newDeleteSound, std::optional<UObject*> newEnterSound, std::optional<UObject*> newMoveSound)

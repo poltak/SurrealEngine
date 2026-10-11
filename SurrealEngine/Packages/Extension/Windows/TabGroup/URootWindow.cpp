@@ -42,8 +42,7 @@ void URootWindow::LockMouse(std::optional<bool> bLockMove, std::optional<bool> b
 
 void URootWindow::SetDefaultEditCursor(std::optional<UObject*> newEditCursor)
 {
-	if (newEditCursor)
-		defaultEditCursor() = UObject::Cast<UTexture>(*newEditCursor);
+	defaultEditCursor() = newEditCursor ? UObject::Cast<UTexture>(*newEditCursor) : nullptr;
 }
 
 void URootWindow::SetDefaultMovementCursors(std::optional<UObject*> newMovementCursor, std::optional<UObject*> newHorizontalMovementCursor, std::optional<UObject*> newVerticalMovementCursor, std::optional<UObject*> newTopLeftMovementCursor, std::optional<UObject*> newTopRightMovementCursor)
@@ -127,31 +126,25 @@ void URootWindow::PostDrawWindow(UGC* gc)
 	UModalWindow::PostDrawWindow(gc);
 	if (IsCursorVisible())
 	{
-		// Find the cursor based on where the mouse is hovering:
-		UTexture* cursor = nullptr;
+		// As XRootWindow::PaintWindows: the window under the mouse, or the window that has the mouse, selects the cursor.
 		float relativeX = 0.0f, relativeY = 0.0f;
 		UWindow* focus = GetCursorFocus(relativeX, relativeY);
 		if (!focus)
 			focus = this;
-		while (focus)
-		{
-			if (UTexture* tex = UObject::Cast<UTexture>(focus->defaultCursor()))
-			{
-				cursor = tex;
-				break;
-			}
-			focus = focus->parentOwner();
-		}
 
-		// Draw the cursor if we found one
-		if (cursor)
+		float hotX = 0.0f, hotY = 0.0f;
+		Color color = { 255, 255, 255, 255 };
+		UTexture* shadow = nullptr;
+		if (UTexture* cursor = focus->QueryCursor(relativeX, relativeY, hotX, hotY, color, shadow))
 		{
-			Color white = { 255, 255, 255, 255 };
+			if (shadow)
+			{
+				gc->SetStyle(EDrawStyle::Modulated);
+				gc->DrawIcon(MouseX() - hotX, MouseY() - hotY, shadow);
+			}
 			gc->SetStyle(EDrawStyle::Masked);
-			gc->SetTileColor(white);
-			float hotspotX = cursor->USize() * 0.5f;
-			float hotspotY = cursor->VSize() * 0.5f;
-			gc->DrawIcon(MouseX() - hotspotX, MouseY() - hotspotY, cursor);
+			gc->SetTileColor(color);
+			gc->DrawIcon(MouseX() - hotX, MouseY() - hotY, cursor);
 		}
 	}
 }

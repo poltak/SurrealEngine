@@ -6,6 +6,9 @@
 #include "TabGroup/UClipWindow.h"
 #include "Audio/AudioDevice.h"
 #include "VM/ScriptCall.h"
+#include "VM/Frame.h"
+#include "Packages/Core/UFunction.h"
+#include "Packages/Engine/Resources/Textures/UTexture.h"
 #include "Engine.h"
 #include "Render/RenderSubsystem.h"
 #include "Package/PackageManager.h"
@@ -1170,15 +1173,88 @@ void UWindow::SetCursorPos(float newMouseX, float newMouseY)
 
 void UWindow::SetDefaultCursor(UObject* tX, std::optional<UObject*> shadowTexture, std::optional<float> HotX, std::optional<float> HotY, std::optional<Color> cursorColor)
 {
+	// As XWindow::execSetDefaultCursor: an argument that the script leaves out gets its default.
+	// A hot spot of -1 is the middle of the texture.
 	defaultCursor() = UObject::Cast<UTexture>(tX);
-	if (shadowTexture)
-		defaultCursorShadow() = UObject::Cast<UTexture>(*shadowTexture);
-	if (HotX)
-		defaultHotX() = *HotX;
-	if (HotY)
-		defaultHotY() = *HotY;
-	if (cursorColor)
-		defaultCursorColor() = *cursorColor;
+	defaultCursorShadow() = shadowTexture ? UObject::Cast<UTexture>(*shadowTexture) : nullptr;
+	defaultHotX() = HotX ? *HotX : -1.0f;
+	defaultHotY() = HotY ? *HotY : -1.0f;
+	defaultCursorColor() = cursorColor ? *cursorColor : Color{ 255, 255, 255, 255 };
+}
+
+// The script of a window can give its own cursor, for example the picture of an inventory item that the player drags
+UTexture* UWindow::CursorRequested(UWindow* win, float pointX, float pointY, float& hotX, float& hotY, Color& newColor, UTexture*& shadowTexture)
+{
+	if (!IsEventEnabled("CursorRequested"))
+		return nullptr;
+	UFunction* func = FindEventFunction(this, "CursorRequested");
+	if (!func)
+		return nullptr;
+
+	// The out arguments of the event are the variables of the caller.
+	// ExpressionValue::Variable adds the offset of the property to the pointer, so take the offset away first.
+	Array<ExpressionValue> args;
+	int index = 0;
+	for (UProperty* prop : func->Properties)
+	{
+		if (!AllFlags(prop->PropFlags, PropertyFlags::Parm) || AllFlags(prop->PropFlags, PropertyFlags::ReturnParm))
+			continue;
+
+		void* target = nullptr;
+		switch (index++)
+		{
+		case 0: args.push_back(ExpressionValue::ObjectValue(win)); continue;
+		case 1: args.push_back(ExpressionValue::FloatValue(pointX)); continue;
+		case 2: args.push_back(ExpressionValue::FloatValue(pointY)); continue;
+		case 3: target = &hotX; break;
+		case 4: target = &hotY; break;
+		case 5: target = &newColor; break;
+		case 6: target = &shadowTexture; break;
+		default: continue;
+		}
+		args.push_back(ExpressionValue::Variable(static_cast<uint8_t*>(target) - prop->DataOffset.DataOffset, prop));
+	}
+	if (index < 7)
+		return nullptr;
+
+	return UObject::Cast<UTexture>(Frame::Call(func, this, std::move(args)).ToObject());
+}
+
+// As XWindow::QueryCursor: this window and then each window above it can give the cursor. A window gives it with
+// its CursorRequested event or with its default cursor. The point is in the coordinates of this window.
+UTexture* UWindow::QueryCursor(float pointX, float pointY, float& hotX, float& hotY, Color& color, UTexture*& shadowTexture)
+{
+	UTexture* cursor = nullptr;
+	for (UWindow* cur = this; cur; cur = cur->parentOwner())
+	{
+		color = { 255, 255, 255, 255 };
+		hotX = -1.0f;
+		hotY = -1.0f;
+
+		cursor = cur->CursorRequested(this, pointX, pointY, hotX, hotY, color, shadowTexture);
+		if (!cursor && cur->defaultCursor())
+		{
+			cursor = cur->defaultCursor();
+			shadowTexture = cur->defaultCursorShadow();
+			hotX = cur->defaultHotX();
+			hotY = cur->defaultHotY();
+			color = cur->defaultCursorColor();
+		}
+		if (cursor)
+			break;
+
+		pointX += cur->UsedX;
+		pointY += cur->UsedY;
+	}
+	if (!cursor)
+		return nullptr;
+
+	// A hot spot that is not in the texture is the middle of the texture
+	if (hotX < 0.0f || hotX >= (float)cursor->USize())
+		hotX = (float)(cursor->USize() / 2 - 1);
+	if (hotY < 0.0f || hotY >= (float)cursor->VSize())
+		hotY = (float)(cursor->VSize() / 2 - 1);
+	return cursor;
 }
 
 void UWindow::SetFocusSounds(std::optional<UObject*> newFocusSound, std::optional<UObject*> newUnfocusSound)
@@ -1466,6 +1542,9 @@ void UWindow::InitWindow()
 	TextColor() = { 255, 255, 255, 255 };
 	//textPlane() = vec4(1.0f);
 	tileColor() = { 255, 255, 255, 255 };
+	defaultHotX() = -1.0f;
+	defaultHotY() = -1.0f;
+	defaultCursorColor() = { 255, 255, 255, 255 };
 	//tilePlane() = vec4(1.0f);
 	backgroundStyle() = (uint8_t)EDrawStyle::Translucent;
 

@@ -47,6 +47,7 @@ public:
 	bool MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks) override;
 	bool MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks) override;
 	void TextModifiedByScript() override;
+	UTexture* CursorRequested(UWindow* win, float pointX, float pointY, float& hotX, float& hotY, Color& newColor, UTexture*& shadowTexture) override;
 
 	void ActivateEdit();
 
