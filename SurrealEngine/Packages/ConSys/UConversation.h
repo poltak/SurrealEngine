@@ -13,6 +13,13 @@ public:
 	void BindActorEvents(UObject* actorToBind);
 	void BindEvents(UObject** conBoundActors, UObject* invokeActor);
 	void ClearBindEvents();
+
+private:
+	void BindEventsToActor(UObject** conBoundActors, class UActor* invokeActor, class UActor* actor);
+	bool BindEventToActor(UConEvent* e, class UActor* invokeActor, class UActor* actor);
+	void LoadEventObjectClasses();
+
+public:
 	UObject* CreateConCamera();
 	UObject* CreateFlagRef(const NameString& FlagName, bool flagValue);
 	UObject* GetSpeechAudio(int soundID);

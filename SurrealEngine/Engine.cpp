@@ -2132,43 +2132,12 @@ void Engine::GetLevelObject()
 			Exception::Throw("Could not find the DeusExLevelInfo object for " + url.Map + "!");
 		*/
 
-		// Link giveObject for all events in the mission
+		// Note: UConversation::BindEvents loads the object classes of the transfer and check events, as the original does
 		if (UConversationList* conList = GetDeusExMission())
 		{
 			for (UConItem* item = conList->conversations(); item; item = item->Next())
 			{
 				auto conversation = UObject::Cast<UConversation>(item->ConObject());
-				for (UConEvent* e = conversation->eventList(); e; e = e->nextEvent())
-				{
-					EEventType eventType = (EEventType)e->eventType();
-					if (eventType == EEventType::TransferObject)
-					{
-						if (auto transfer = UObject::Cast<UConEventTransferObject>(e))
-						{
-							UClass* cls = engine->packages->FindClass("DeusEx." + transfer->ObjectName());
-							if (!cls)
-								LogMessage("Could not find class for TransferObject: " + transfer->ObjectName());
-							transfer->giveObject() = cls;
-						}
-					}
-					else if (eventType == EEventType::CheckObject)
-					{
-						if (auto eventCheckObject = UObject::Cast<UConEventCheckObject>(e))
-						{
-							if (eventCheckObject->ObjectName().starts_with("NK_"))
-							{
-								eventCheckObject->checkObject() = nullptr;
-							}
-							else
-							{
-								UClass* cls = engine->packages->FindClass("DeusEx." + eventCheckObject->ObjectName());
-								if (!cls)
-									LogMessage("Could not find class for CheckObject: " + eventCheckObject->ObjectName());
-								eventCheckObject->checkObject() = cls;
-							}
-						}
-					}
-				}
 
 				// Remove comments from event lists:
 				while (conversation->eventList() && (EEventType)conversation->eventList()->eventType() == EEventType::Comment)
