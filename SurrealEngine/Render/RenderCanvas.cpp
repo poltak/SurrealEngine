@@ -14,6 +14,7 @@
 #include "GameWindow.h"
 #include "VM/ScriptCall.h"
 #include "Engine.h"
+#include "Harness.h"
 
 void RenderSubsystem::ResetCanvas()
 {
@@ -547,7 +548,7 @@ void RenderSubsystem::DrawTimedemoStats()
 		Canvas.framesDrawn = 0;
 	}
 
-	if (ShowTimedemoStats || engine->LaunchInfo.IsDeusEx())
+	if (ShowTimedemoStats || Harness::Get().ShowStats)
 	{
 		Array<std::string> lines;
 		lines.push_back(std::to_string(Canvas.fps) + " FPS");

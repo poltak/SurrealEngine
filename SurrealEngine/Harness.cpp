@@ -68,6 +68,7 @@ void Harness::Init()
 	TraceKeys = commandline->HasArg({}, "--tracekeys");
 	TraceAI = commandline->HasArg({}, "--traceai");
 	CheckNatives = commandline->HasArg({}, "--checknatives");
+	ShowStats = commandline->HasArg({}, "--stats");
 	double fixedFps = commandline->GetArgDouble({}, "--fixed-fps", 0.0);
 	FixedDelta = fixedFps > 0.0 ? 1.0 / fixedFps : 0.0;
 	Seed = commandline->GetArgInt({}, "--seed", -1);

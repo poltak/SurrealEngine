@@ -57,6 +57,7 @@ public:
 	bool TraceAI = false;    // --traceai: log each step of AICanSee for a player target
 	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
 	bool CheckNatives = false; // --checknatives: log each native script function that has no handler, then quit
+	bool ShowStats = false;  // --stats: show the frame rate and object counts on the screen (same as the console command "timedemo 1")
 
 private:
 	struct Event
