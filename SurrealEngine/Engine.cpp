@@ -1390,19 +1390,45 @@ std::string Engine::ConsoleCommand(UObject* context, const std::string& commandl
 			}
 		}
 	}
+	else if (command == "set" && args.size() >= 3 && (NameString(args[1]) == "Input" || NameString(args[1]) == "InputExt"))
+	{
+		// SET Input <key> [command]: bind a key. Deus Ex uses its own input class: SET InputExt <key> [command].
+		// The command is all text after the key name, because it can have arguments ("ActivateAugmentation 3").
+		// No command removes the binding. The key menu of Deus Ex and the multiplayer key setup use this.
+		size_t pos = 0;
+		for (int token = 0; token < 3; token++)
+		{
+			pos = commandline.find_first_not_of(" \t", pos);
+			pos = commandline.find_first_of(" \t", pos);
+			if (pos == std::string::npos)
+				pos = commandline.size();
+		}
+		pos = commandline.find_first_not_of(" \t", pos);
+		std::string value = pos != std::string::npos ? commandline.substr(pos) : std::string();
+		while (!value.empty() && (value.back() == ' ' || value.back() == '\t'))
+			value.pop_back();
+		if (value.size() >= 2 && value.front() == '"' && value.back() == '"')
+			value = value.substr(1, value.size() - 2);
+
+		// Use the spelling of the key name table, which is the key of the bindings map
+		NameString keyName = args[2];
+		for (int i = 0; i < 256; i++)
+		{
+			if (keyName == keynames[i])
+			{
+				keybindings[keynames[i]] = value;
+				packages->SetIniValue("user", InputIniSection(), keynames[i], value);
+				return {};
+			}
+		}
+		LogMessage("Unknown key name: " + commandline);
+		return {};
+	}
 	else if (command == "set" && args.size() == 4)
 	{
 		NameString className = ParseClassName(args[1]);
 		NameString propertyName = args[2];
 		std::string value = args[3];
-
-		// Special input setting handling
-		if (className == "input")
-		{
-			keybindings[propertyName.ToString()] = value;
-			packages->SetIniValue("user", "Engine.Input", propertyName, value);
-			return {};
-		}
 
 		UClass* cls = packages->FindClass(className);
 		if (!cls)
@@ -1571,17 +1597,63 @@ void Engine::LoadEngineSettings()
 #endif
 }
 
+// The section of the user ini that gets the key bindings.
+// Deus Ex has its own input class, Extension.InputExt, and the original game saves its bindings in the section of that class.
+std::string Engine::InputIniSection() const
+{
+	return LaunchInfo.IsDeusEx() ? "Extension.InputExt" : "Engine.Input";
+}
+
+// Reads a value of the input class from the user ini.
+// A new copy of Deus Ex has only the section of the base class, Engine.Input. The section of Extension.InputExt
+// comes when the game saves its bindings. A value in it replaces the value of the base class.
+std::string Engine::GetInputIniValue(const std::string& key)
+{
+	static const std::string missing = "\x01missing";
+	std::string section = InputIniSection();
+	if (section != "Engine.Input")
+	{
+		std::string value = packages->GetIniValue("user", section, key, missing);
+		if (value != missing)
+			return value;
+	}
+	return packages->GetIniValue("user", "Engine.Input", key);
+}
+
+// PlayerPawn.ResetKeyboard: the original calls UObject::ResetConfig for the input class. That copies the section of the
+// class from DefUser.ini to the user ini and then loads the bindings again. DefUser.ini of Deus Ex has no section for
+// Extension.InputExt, so the bindings of the player stay.
+void Engine::ResetKeyboard()
+{
+	static const std::string missing = "\x01missing";
+	std::string section = InputIniSection();
+	for (int i = 0; i < 256; i++)
+	{
+		std::string value = packages->GetDefUserIniValue(section, keynames[i], missing);
+		if (value != missing)
+			packages->SetIniValue("user", section, keynames[i], value);
+	}
+	for (int i = 0; i < 40; i++)
+	{
+		std::string key = "Aliases[" + std::to_string(i) + "]";
+		std::string value = packages->GetDefUserIniValue(section, key, missing);
+		if (value != missing)
+			packages->SetIniValue("user", section, key, value);
+	}
+	LoadKeybindings();
+}
+
 void Engine::LoadKeybindings()
 {
 	for (int i = 0; i < 256; i++)
 	{
 		std::string keyname = keynames[i];
-		keybindings[keyname] = packages->GetIniValue("user", "Engine.Input", keyname);
+		keybindings[keyname] = GetInputIniValue(keyname);
 	}
 
 	for (int i = 0; i < 40; i++)
 	{
-		std::string alias = packages->GetIniValue("user", "Engine.Input", "Aliases[" + std::to_string(i) + "]");
+		std::string alias = GetInputIniValue("Aliases[" + std::to_string(i) + "]");
 
 		// Total trash parsing, but it will do for the aliases I have! Feel free to improve it!
 		std::string commandStart = "(Command=\"";

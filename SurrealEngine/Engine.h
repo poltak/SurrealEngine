@@ -215,6 +215,9 @@ public:
 	void LoadEngineSettings();
 
 	void LoadKeybindings();
+	void ResetKeyboard();
+	std::string InputIniSection() const;
+	std::string GetInputIniValue(const std::string& key);
 	std::map<std::string, std::string> keybindings;
 	std::map<std::string, std::string> inputAliases;
 	static const char* keynames[256];
