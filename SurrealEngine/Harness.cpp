@@ -13,6 +13,7 @@
 #include "Packages/Engine/UViewport.h"
 #include "Packages/Extension/Windows/TabGroup/URootWindow.h"
 #include "Packages/Extension/Windows/Text/UTextWindow.h"
+#include "Packages/Extension/Windows/Text/UToggleWindow.h"
 #include "Packages/Extension/Windows/UListWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Core/UClass.h"
@@ -601,7 +602,7 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	{
 		// windows: log each visible window of the Deus Ex interface: class, place in its parent, size, and flags.
 		// "focus" marks the window that gets the keys, "mouse" the window under the mouse.
-		// A text window also has the start of its text, and a list window its count of rows.
+		// A text window also has the start of its text, a list window its count of rows, and a toggle or checkbox its state.
 		URootWindow* root = engine->dxRootWindow;
 		if (!root)
 		{
@@ -632,6 +633,8 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 					{
 						content = " rows=" + std::to_string(listWindow->GetNumRows());
 					}
+					if (auto toggleWindow = UObject::TryCast<UToggleWindow>(window))
+						content += toggleWindow->GetToggle() ? " toggle=on" : " toggle=off";
 
 					char buf[500];
 					snprintf(buf, sizeof(buf), "Harness: window %*s%s x=%d y=%d w=%d h=%d%s%s%s%s%s", depth * 2, "", UObject::GetUClassName(window).ToString().c_str(),
