@@ -891,6 +891,19 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			LogMessage("Harness: setflag " + name);
 		}
 	}
+	else if (e.Command == "goals")
+	{
+		// goals: log the goals of the player (Deus Ex)
+		UObject* player = engine->viewport ? engine->viewport->Actor() : nullptr;
+		UObject* goal = (player && player->HasProperty("FirstGoal")) ? player->GetUObject("FirstGoal") : nullptr;
+		int count = 0;
+		for (; goal && count < 100; goal = goal->GetUObject("next"), count++)
+		{
+			LogMessage("Harness: goal " + goal->GetPropertyAsString("goalName") + " primary=" + goal->GetPropertyAsString("bPrimaryGoal") +
+				" completed=" + goal->GetPropertyAsString("bCompleted") + " text=\"" + goal->GetString("text").substr(0, 60) + "\"");
+		}
+		LogMessage("Harness: goals count=" + std::to_string(count));
+	}
 	else if (e.Command == "trigger")
 	{
 		// trigger <tag>: send the Trigger event to each actor with that tag, as a trigger or a conversation does it.
