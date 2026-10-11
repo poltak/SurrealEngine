@@ -1439,7 +1439,7 @@ bool UWindow::ScaleRangeChanged(UWindow* scale, int fromTick, int toTick, float 
 
 bool UWindow::ScaleAttributesChanged(UWindow* scale, int tickPosition, int tickSpan, int numTicks)
 {
-	return CallEvent(this, "ScaleRangeChanged", {
+	return CallEvent(this, "ScaleAttributesChanged", {
 		ExpressionValue::ObjectValue(scale),
 		ExpressionValue::IntValue(tickPosition),
 		ExpressionValue::IntValue(tickSpan),
