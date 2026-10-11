@@ -154,6 +154,15 @@ bool UActor::Destroy()
 	if (bDeleteMe())
 		return true;
 
+	if (engine->LaunchInfo.IsDeusEx() && !GetStateName().IsNone() && IsEventEnabled(EventName::EndState))
+	{
+		// As ULevel::DestroyActor in the Engine.dll: an actor that is in a state gets the EndState event of that
+		// state before it goes away. A pawn in a conversation ends the conversation there, for example.
+		CallEvent(this, EventName::EndState);
+		if (bDeleteMe())
+			return true;
+	}
+
 	bDeleteMe() = true;
 
 	if (XLevel() && XLevel()->EventManager)
