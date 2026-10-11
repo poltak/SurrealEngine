@@ -156,78 +156,54 @@ void URootWindow::PostDrawWindow(UGC* gc)
 	}
 }
 
-static UWindow* CommonAncestor(UWindow* a, UWindow* b)
-{
-	if (a == b)
-		return a;
-
-	std::vector<UWindow*> list1;
-	std::vector<UWindow*> list2;
-	list1.reserve(16);
-	list2.reserve(16);
-	for (UWindow* w = a; w != nullptr; w = w->parentOwner())
-		list1.push_back(w);
-	for (UWindow* w = b; w != nullptr; w = w->parentOwner())
-		list2.push_back(w);
-
-	if (list1.empty() || list2.empty() || list1.back() != list2.back())
-		return nullptr;
-
-	auto it1 = list1.rbegin();
-	auto it2 = list2.rbegin();
-	while (it1 != list1.rend() && it2 != list2.rend())
-	{
-		if (*it1 != *it2)
-		{
-			return *(--it1);
-		}
-		++it1;
-		++it2;
-	}
-
-	if (it1 == list1.rend())
-		return *(--it1);
-	else if (it2 == list2.rend())
-		return *(--it2);
-
-	return nullptr;
-}
-
+// As XWindow::SetFocusWindow in Extension.dll
 bool URootWindow::SetRootFocusWindow(UWindow* newFocusWindow)
 {
-	UWindow* oldFocusWindow = FocusWindow();
-	if (oldFocusWindow != newFocusWindow)
+	// The focus goes to the window, or to the first window above it that is selectable
+	for (UWindow* w = newFocusWindow; w; w = w->parentOwner())
 	{
-		UWindow* ancestor = CommonAncestor(oldFocusWindow, newFocusWindow);
-		if (oldFocusWindow)
+		if (w->bIsSelectable())
 		{
-			if (oldFocusWindow->unfocusSound())
-				oldFocusWindow->PlaySound(oldFocusWindow->unfocusSound(), {}, {}, {}, {});
-
-			oldFocusWindow->FocusLeftWindow();
-			if (oldFocusWindow != ancestor)
-				for (UWindow* w = oldFocusWindow->parentOwner(); w && w != ancestor; w = w->parentOwner())
-				{
-					w->FocusLeftDescendant(oldFocusWindow);
-				}
+			newFocusWindow = w;
+			break;
 		}
-		FocusWindow() = newFocusWindow;
-		if (newFocusWindow)
-		{
-			// As XWindow::SetFocusWindow: a scroll area brings the window with the focus into view
-			newFocusWindow->AskParentToShowArea(0.0f, 0.0f, newFocusWindow->Width(), newFocusWindow->Height());
+	}
 
-			// Note: this order is in reverse. Hopefully it doesn't matter.
-			newFocusWindow->FocusEnteredWindow();
-			if(newFocusWindow != ancestor)
-				for (UWindow* w = newFocusWindow->parentOwner(); w && w != ancestor; w = w->parentOwner())
-				{
-					w->FocusEnteredDescendant(newFocusWindow);
-				}
+	UWindow* oldFocusWindow = FocusWindow();
+	if (oldFocusWindow == newFocusWindow)
+		return true;
 
-			if (newFocusWindow->focusSound())
-				newFocusWindow->PlaySound(newFocusWindow->focusSound(), {}, {}, {}, {});
-		}
+	if (newFocusWindow)
+	{
+		if (!newFocusWindow->IsTraversable(true))
+			return false;
+
+		// The modal window keeps this window. The focus comes back to it when a window on top of the modal window closes.
+		if (UModalWindow* modal = UObject::Cast<UModalWindow>(newFocusWindow->GetModalWindow()))
+			modal->preferredFocus() = newFocusWindow;
+	}
+
+	FocusWindow() = newFocusWindow;
+
+	if (oldFocusWindow)
+	{
+		oldFocusWindow->FocusLeftWindow();
+		if (oldFocusWindow->unfocusSound())
+			oldFocusWindow->PlaySound(oldFocusWindow->unfocusSound(), {}, {}, {}, {});
+		for (UWindow* w = oldFocusWindow; w; w = w->parentOwner())
+			w->FocusLeftDescendant(oldFocusWindow);
+	}
+
+	// A script event can move the focus again, so use the window that has the focus now
+	if (UWindow* focus = FocusWindow())
+	{
+		// A scroll area brings the window with the focus into view
+		focus->AskParentToShowArea(0.0f, 0.0f, focus->Width(), focus->Height());
+		if (focus->focusSound())
+			focus->PlaySound(focus->focusSound(), {}, {}, {}, {});
+		focus->FocusEnteredWindow();
+		for (UWindow* w = focus; w; w = w->parentOwner())
+			w->FocusEnteredDescendant(focus);
 	}
 	return true;
 }
@@ -253,34 +229,58 @@ void URootWindow::SetRootCursorPos(float newMouseX, float newMouseY)
 
 	// Apply the new cursor pos:
 
-	prevMouseX() = MouseX();
-	prevMouseY() = MouseY();
 	MouseX() = newMouseX;
 	MouseY() = newMouseY;
-
-	float relativeX = 0.0f, relativeY = 0.0f;
-	UWindow* focus = GetCursorFocus(relativeX, relativeY);
-
-	auto lastFocus = UObject::Cast<UWindow>(lastMouseWindow());
-	if (lastFocus != focus)
-	{
-		if (lastFocus)
-		{
-			if (UWindow* ancestor = CommonAncestor(lastFocus, focus))
-			{
-				for (UWindow* w = lastFocus; w != ancestor; w = w->parentOwner())
-				{
-					w->MouseLeftWindow();
-				}
-			}
-		}
-		lastMouseWindow() = focus;
-		focus->MouseEnteredWindow();
-	}
-
-	focus->MouseMoved(relativeX, relativeY);
+	bMouseMoved() = true;
+	ProcessMouseMove();
 }
 
+// As XRootWindow::ProcessMouseMove in Extension.dll
+void URootWindow::ProcessMouseMove()
+{
+	if (!bMouseMoved())
+		return;
+
+	UModalWindow* modal = UObject::Cast<UModalWindow>(GetCurrentModal());
+	uint8_t mode = modal ? modal->focusMode() : (uint8_t)MFOCUS_None;
+
+	float relativeX = 0.0f, relativeY = 0.0f;
+	UWindow* mouseWindow = GetCursorFocus(relativeX, relativeY);
+	UWindow* lastWindow = UObject::Cast<UWindow>(lastMouseWindow());
+	if (lastWindow != mouseWindow)
+	{
+		// The mouse focus mode of the modal window on top tells if the window under the mouse gets the keyboard focus
+		if (lastWindow)
+		{
+			lastWindow->MouseLeftWindow();
+			if (mode > MFOCUS_Enter)
+				SetRootFocusWindow(nullptr);
+		}
+		if (mouseWindow)
+		{
+			mouseWindow->MouseEnteredWindow();
+			if (mode > MFOCUS_Click)
+				SetRootFocusWindow(mouseWindow);
+		}
+		lastMouseWindow() = mouseWindow;
+	}
+
+	if (prevMouseX() != MouseX() || prevMouseY() != MouseY())
+	{
+		if (mouseWindow)
+		{
+			ConvertCoordinates(this, MouseX(), MouseY(), mouseWindow, relativeX, relativeY);
+			mouseWindow->MouseMoved(relativeX, relativeY);
+		}
+		prevMouseX() = MouseX();
+		prevMouseY() = MouseY();
+	}
+
+	bMouseMoved() = false;
+}
+
+// As XRootWindow::GetMouseWindow in Extension.dll: the window that has the mouse grabbed, or the top window under the
+// cursor in the modal window on top, or that modal window. A window of a screen below that modal window gets no mouse.
 UWindow* URootWindow::GetCursorFocus(float& relativeX, float& relativeY)
 {
 	if (UWindow* grab = grabbedWindow())
@@ -289,12 +289,15 @@ UWindow* URootWindow::GetCursorFocus(float& relativeX, float& relativeY)
 		return grab;
 	}
 
-	if (UWindow* cursor = FindWindow(MouseX(), MouseY(), relativeX, relativeY))
-		return cursor;
+	UWindow* modal = GetCurrentModal();
+	float x = 0.0f, y = 0.0f;
+	ConvertCoordinates(this, MouseX(), MouseY(), modal, x, y);
+	if (UWindow* found = modal->FindWindowByPoint(x, y, relativeX, relativeY))
+		return found;
 
-	relativeX = MouseX();
-	relativeY = MouseY();
-	return this;
+	relativeX = x;
+	relativeY = y;
+	return modal;
 }
 
 bool URootWindow::OnWindowMouseMove(const Point& pos)
@@ -338,23 +341,26 @@ bool URootWindow::OnWindowMouseDown(const Point& pos, EInputKey key)
 	if (bMouseButtonLocked())
 		return true;
 
+	// As XRootWindow::HandleButtons: the window under the mouse grabs the mouse until the button goes up, and it gets
+	// the keyboard focus unless the modal window on top has no mouse focus mode
 	float relativeX = 0.0f, relativeY = 0.0f;
-	UWindow* focus = GetCursorFocus(relativeX, relativeY);
+	UWindow* mouseWindow = GetCursorFocus(relativeX, relativeY);
+	mouseWindow->GrabMouse();
+	UModalWindow* modal = UObject::Cast<UModalWindow>(GetCurrentModal());
+	if (modal && modal->focusMode() != MFOCUS_None)
+		SetRootFocusWindow(mouseWindow);
 
-	if (!focus->bIsSensitive())
-		return true;
-
-	if (focus->RawMouseButtonPressed(relativeX, relativeY, key, EInputType::IST_Press))
-		return true;
-
-	if (focus->bIsSelectable())
-		SetRootFocusWindow(focus);
-
-	int numClicks = UpdateClickCount(focus, key, true);
-	for (UWindow* cur = focus; cur; cur = cur->parentOwner())
+	// The event goes to the window and then to each window above it, until a window handles it
+	int numClicks = UpdateClickCount(mouseWindow, key, true);
+	for (UWindow* cur = mouseWindow; cur; )
 	{
+		UWindow* parent = cur->parentOwner();
+		ConvertCoordinates(this, MouseX(), MouseY(), cur, relativeX, relativeY);
+		if (cur->RawMouseButtonPressed(relativeX, relativeY, key, EInputType::IST_Press))
+			break;
 		if (cur->MouseButtonPressed(relativeX, relativeY, key, numClicks))
-			return true;
+			break;
+		cur = parent;
 	}
 
 	return true;
@@ -418,20 +424,21 @@ bool URootWindow::OnWindowMouseUp(const Point& pos, EInputKey key)
 	if (!wasDown || bMouseButtonLocked())
 		return true;
 
+	// As XRootWindow::HandleButtons: the window that grabbed the mouse at the press gets the release
 	float relativeX = 0.0f, relativeY = 0.0f;
-	UWindow* focus = GetCursorFocus(relativeX, relativeY);
+	UWindow* mouseWindow = GetCursorFocus(relativeX, relativeY);
+	mouseWindow->UngrabMouse();
 
-	if (focus->RawMouseButtonPressed(relativeX, relativeY, key, EInputType::IST_Release))
-		return true;
-
-	if (!focus->bIsSensitive())
-		return true;
-
-	int numClicks = UpdateClickCount(focus, key, false);
-	for (UWindow* cur = focus; cur; cur = cur->parentOwner())
+	int numClicks = UpdateClickCount(mouseWindow, key, false);
+	for (UWindow* cur = mouseWindow; cur; )
 	{
+		UWindow* parent = cur->parentOwner();
+		ConvertCoordinates(this, MouseX(), MouseY(), cur, relativeX, relativeY);
+		if (cur->RawMouseButtonPressed(relativeX, relativeY, key, EInputType::IST_Release))
+			break;
 		if (cur->MouseButtonReleased(relativeX, relativeY, key, numClicks))
-			return true;
+			break;
+		cur = parent;
 	}
 
 	return true;

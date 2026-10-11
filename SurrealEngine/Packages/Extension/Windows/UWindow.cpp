@@ -3,6 +3,7 @@
 #include "UWindow.h"
 #include "UGC.h"
 #include "TabGroup/URootWindow.h"
+#include "TabGroup/UModalWindow.h"
 #include "TabGroup/UClipWindow.h"
 #include "Audio/AudioDevice.h"
 #include "VM/ScriptCall.h"
@@ -396,45 +397,37 @@ void UWindow::EnableWindow(std::optional<bool> bEnable)
 	SetSensitivity(bEnable ? *bEnable : true);
 }
 
+// As XWindow::FindWindow in Extension.dll: the search is in the modal window that is on top
 UWindow* UWindow::FindWindow(float pointX, float pointY, float& relativeX, float& relativeY)
 {
-	// Convert to global coordinates and find root:
-	float x = pointX;
-	float y = pointY;
-	UWindow* cur = this;
-	while (cur->parentOwner())
+	URootWindow* root = GetRootWindow();
+	if (!root)
+		return nullptr;
+
+	UWindow* modal = root->GetCurrentModal();
+	float x = 0.0f, y = 0.0f;
+	ConvertCoordinates(this, pointX, pointY, modal, x, y);
+	return modal->FindWindowByPoint(x, y, relativeX, relativeY);
+}
+
+// As XWindow::FindWindowByPoint in Extension.dll: the top window at a point of this window. A window that does not
+// show or that is not sensitive is not a candidate, and its children are also not. A modal child is not a candidate.
+UWindow* UWindow::FindWindowByPoint(float pointX, float pointY, float& relativeX, float& relativeY)
+{
+	if (!bIsVisible() || !bIsSensitive() || pointX < 0.0f || pointX >= Width() || pointY < 0.0f || pointY >= Height())
+		return nullptr;
+
+	for (UWindow* child = lastChild(); child; child = child->prevSibling())
 	{
-		x += cur->UsedX;
-		y += cur->UsedY;
-		cur = cur->parentOwner();
+		if (UObject::TryCast<UModalWindow>(child))
+			continue;
+		if (UWindow* found = child->FindWindowByPoint(pointX - child->UsedX, pointY - child->UsedY, relativeX, relativeY))
+			return found;
 	}
 
-	// Search the tree
-	while (true)
-	{
-		UWindow* foundChild = nullptr;
-		for (UWindow* child = cur->lastChild(); child; child = child->prevSibling())
-		{
-			if (child->bIsVisible() &&
-				child->UsedX <= x &&
-				child->UsedY <= y &&
-				child->UsedX + child->Width() > x &&
-				child->UsedY + child->Height() > y)
-			{
-				foundChild = child;
-				break;
-			}
-		}
-		if (!foundChild)
-			break;
-		cur = foundChild;
-		x -= cur->UsedX;
-		y -= cur->UsedY;
-	}
-
-	relativeX = x;
-	relativeY = y;
-	return cur;
+	relativeX = pointX;
+	relativeY = pointY;
+	return this;
 }
 
 UObject* UWindow::GetBottomChild(std::optional<bool> bVisibleOnly)

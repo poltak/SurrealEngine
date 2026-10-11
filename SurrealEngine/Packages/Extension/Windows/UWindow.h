@@ -174,6 +174,7 @@ public:
 	void EnableTranslucentText(std::optional<bool> bEnable);
 	void EnableWindow(std::optional<bool> bEnable);
 	UWindow* FindWindow(float pointX, float pointY, float& relativeX, float& relativeY);
+	UWindow* FindWindowByPoint(float pointX, float pointY, float& relativeX, float& relativeY);
 	UObject* GetBottomChild(std::optional<bool> bVisibleOnly);
 	UObject* GetClientObject();
 	void GetCursorPos(float& MouseX, float& MouseY);

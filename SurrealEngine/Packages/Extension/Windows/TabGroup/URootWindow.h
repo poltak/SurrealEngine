@@ -30,6 +30,7 @@ public:
 
 	bool SetRootFocusWindow(UWindow* NewFocusWindow);
 	void SetRootCursorPos(float newMouseX, float newMouseY);
+	void ProcessMouseMove();
 	UWindow* GetCursorFocus(float& relativeX, float& relativeY);
 	bool OnWindowMouseMove(const Point& pos);
 	bool OnWindowMouseDown(const Point& pos, EInputKey key);
