@@ -18,7 +18,10 @@ class UActor;
 //   --shot-first=<s>        time of the first automatic frame
 //   --nograb                keep the mouse cursor free
 //   --mute                  no sound output
-//   --winsize=<W>x<H>       keep the window at this size in pixels
+//   --winsize=<W>x<H>       open the window with this size in pixels and keep it. The game starts when the
+//                           window manager has stopped changing the size of the new window.
+//   --wait-file=<path>      with --winsize: do not start the game before this file is there. The test runner makes
+//                           the file when it has told the window manager what to do with the new window.
 //   --fixed-fps=<N>         advance the game by 1/N seconds per frame (same result at any render speed)
 //   --seed=<N>              seed of the random number generator
 //   --script=<path>         timed input script, one event per line: "<seconds> <command> [args]"
@@ -42,6 +45,12 @@ public:
 
 	void Init();
 	void LogFatal(const std::string& text);
+
+	// --winsize: the requested size of the window in pixels. False if the run has no fixed window size.
+	bool GetWindowSize(int& width, int& height) const;
+
+	// Wait, before the game starts, until the new window keeps the requested size
+	void SettleWindowSize(Engine* engine);
 	void Tick(Engine* engine);
 	void AfterFrame(Engine* engine, RenderDevice* device);
 
@@ -84,6 +93,7 @@ private:
 	UActor* aimTarget = nullptr;
 	double aimUntil = 0.0;
 	std::string winSize;
+	std::string waitFile;
 	double nextWinSizeCheck = 1.5; // not in the first frames: the window manager can resize the new window at that time
 	std::vector<Event> events;
 	size_t nextEvent = 0;

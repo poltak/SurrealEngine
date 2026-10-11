@@ -140,6 +140,7 @@ void Engine::Run()
 	LogGamePackageSHA1Sums();
 
 	OpenWindow();
+	Harness::Get().SettleWindowSize(this);
 
 	audiodev->InitDevice();
 	render = std::make_unique<RenderSubsystem>(window->GetRenderDevice());
@@ -1853,6 +1854,16 @@ void Engine::OpenWindow()
 	int width = client->StartupFullscreen ? client->FullscreenViewportX : client->WindowedViewportX;
 	int height = client->StartupFullscreen ? client->FullscreenViewportY : client->WindowedViewportY;
 	bool fullscreen = client->StartupFullscreen;
+
+	// A test run with a fixed window size opens the window with that size, so the size does not change later
+	int harnessWidth = 0, harnessHeight = 0;
+	if (Harness::Get().GetWindowSize(harnessWidth, harnessHeight))
+	{
+		double dpiScale = std::max(window->GetDpiScale(), 1.0);
+		width = (int)std::round(harnessWidth / dpiScale);
+		height = (int)std::round(harnessHeight / dpiScale);
+		fullscreen = false;
+	}
 
 	std::string versionString = !LaunchInfo.gameVersionString.empty() ? " (v" + LaunchInfo.gameVersionString + ")" : "";
 

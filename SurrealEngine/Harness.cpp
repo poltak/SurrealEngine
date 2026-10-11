@@ -1,6 +1,9 @@
 
 #include "Precomp.h"
 #include "Harness.h"
+#include <thread>
+#include <filesystem>
+#include <chrono>
 #include "Engine.h"
 #include "GameWindow.h"
 #include "RenderDevice/RenderDevice.h"
@@ -92,10 +95,52 @@ void Harness::Init()
 	}
 
 	winSize = commandline->GetArg({}, "--winsize");
+	waitFile = commandline->GetArg({}, "--wait-file");
 
 	std::string script = commandline->GetArg({}, "--script");
 	if (!script.empty())
 		LoadScript(script);
+}
+
+bool Harness::GetWindowSize(int& width, int& height) const
+{
+	return !winSize.empty() && sscanf(winSize.c_str(), "%dx%d", &width, &height) == 2 && width > 0 && height > 0;
+}
+
+// A window manager can change the size of a new window some time after it opens. The size of the view changes what
+// the game does, because some game logic depends on which actors the player sees. A test must give the same result
+// in each run, so the game must not start before the window has its size. This waits in real time for the file of
+// the test runner (--wait-file), and then until the window has kept the requested size for one second.
+void Harness::SettleWindowSize(Engine* engine)
+{
+	int width = 0, height = 0;
+	if (!engine->window || !GetWindowSize(width, height))
+		return;
+
+	using clock = std::chrono::steady_clock;
+	const auto start = clock::now();
+	auto correctSince = start;
+	bool waitForFile = !waitFile.empty();
+	while (clock::now() - start < std::chrono::seconds(20))
+	{
+		GameWindow::ProcessEvents();
+		if (waitForFile && std::filesystem::exists(waitFile))
+		{
+			waitForFile = false;
+			correctSince = clock::now();
+		}
+		if (engine->window->GetPixelWidth() != width || engine->window->GetPixelHeight() != height)
+		{
+			engine->window->SetResolution(winSize);
+			correctSince = clock::now();
+		}
+		else if (!waitForFile && clock::now() - correctSince >= std::chrono::seconds(1))
+		{
+			return;
+		}
+		std::this_thread::sleep_for(std::chrono::milliseconds(10));
+	}
+	LogMessage(waitForFile ? "Harness: no file " + waitFile : "Harness: the window did not keep the size " + winSize);
 }
 
 void Harness::LogFatal(const std::string& text)
