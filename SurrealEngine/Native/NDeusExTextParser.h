@@ -14,7 +14,7 @@ public:
 	static void GetName(UObject* Self, NameString& ReturnValue);
 	static void GetTag(UObject* Self, uint8_t& ReturnValue);
 	static void GetText(UObject* Self, std::string& ReturnValue);
-	static void GotoLabel(UObject* Self, const std::string& Label);
+	static void GotoLabel(UObject* Self, const std::string& Label, BitfieldBool& ReturnValue);
 	static void IsEOF(UObject* Self, BitfieldBool& ReturnValue);
 	static void OpenText(UObject* Self, const NameString& textName, std::optional<std::string> TextPackage, BitfieldBool& ReturnValue);
 	static void ProcessText(UObject* Self, BitfieldBool& ReturnValue);

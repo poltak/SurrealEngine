@@ -12,7 +12,7 @@ void NDeusExTextParser::RegisterFunctions()
 	RegisterVMNativeFunc_1("DeusExTextParser", "GetName", &NDeusExTextParser::GetName, 2217);
 	RegisterVMNativeFunc_1("DeusExTextParser", "GetTag", &NDeusExTextParser::GetTag, 2216);
 	RegisterVMNativeFunc_1("DeusExTextParser", "GetText", &NDeusExTextParser::GetText, 2214);
-	RegisterVMNativeFunc_1("DeusExTextParser", "GotoLabel", &NDeusExTextParser::GotoLabel, 2215);
+	RegisterVMNativeFunc_2("DeusExTextParser", "GotoLabel", &NDeusExTextParser::GotoLabel, 2215);
 	RegisterVMNativeFunc_1("DeusExTextParser", "IsEOF", &NDeusExTextParser::IsEOF, 2213);
 	RegisterVMNativeFunc_3("DeusExTextParser", "OpenText", &NDeusExTextParser::OpenText, 2210);
 	RegisterVMNativeFunc_1("DeusExTextParser", "ProcessText", &NDeusExTextParser::ProcessText, 2212);
@@ -61,10 +61,10 @@ void NDeusExTextParser::GetText(UObject* Self, std::string& ReturnValue)
 	ReturnValue = DXTPSelf->GetText();
 }
 
-void NDeusExTextParser::GotoLabel(UObject* Self, const std::string& Label)
+void NDeusExTextParser::GotoLabel(UObject* Self, const std::string& Label, BitfieldBool& ReturnValue)
 {
 	auto DXTPSelf = UObject::Cast<UDXTextParser>(Self);
-	DXTPSelf->GotoLabel(Label);
+	ReturnValue = DXTPSelf->GotoLabel(Label);
 }
 
 void NDeusExTextParser::IsEOF(UObject* Self, BitfieldBool& ReturnValue)

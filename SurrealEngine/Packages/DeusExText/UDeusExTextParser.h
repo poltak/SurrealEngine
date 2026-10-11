@@ -2,8 +2,6 @@
 
 #include "Packages/Core/UObject.h"
 
-class UDXExtString;
-
 enum class DeusExTextTags : uint8_t
 {
 	TT_Text,
@@ -70,7 +68,7 @@ public:
 	bool ProcessText();
 	bool IsEOF();
 	std::string GetText();
-	void GotoLabel(const std::string& label);
+	bool GotoLabel(const std::string& label);
 	uint8_t GetTag();
 	NameString GetName();
 	Color GetColor();
@@ -79,15 +77,18 @@ public:
 	void SetPlayerName(const std::string& newPlayerName);
 
 private:
-	UDXExtString* textObject = nullptr;
+	std::string ParseTextBlock();
+	std::string ParseTag();
+	std::string ParseToken(DeusExTextTags tag, const std::string& args);
+	void ParseFile(const std::string& args);
+	void ParseEmail(const std::string& args);
+	void ParseName(const std::string& args);
+	void ParseColor(const std::string& args);
+	std::string FindEndTag(DeusExTextTags endTag);
 
-	static void EatWhitespace(const std::string& text, size_t& pos);
-	static bool ReadChars(const std::string& text, size_t& pos, const std::string& chars);
-	static bool ReadTagName(const std::string& text, size_t& pos, std::string& tagname);
-	static bool ReadTagColor(const std::string& text, size_t& pos, Color& color);
-	static bool ReadInteger(const std::string& text, size_t& pos, int value);
-	static bool ReadTextUntil(const std::string& text, size_t& pos, std::string& value, char endChar);
-	static bool ReadText(const std::string& text, size_t& pos, std::string& value);
-	static bool ReadTagFile(const std::string& text, size_t& pos, std::string& filename, std::string& filedescription);
-	static bool ReadTagEmail(const std::string& text, size_t& pos, std::string& emailName, std::string& emailSubject, std::string& emailFrom, std::string& emailTo, std::string& emailCC);
+	static std::string ParseSubToken(const std::string& args, size_t& pos);
+	static std::string TrimSpaces(const std::string& value);
+
+	std::string text;
+	bool textEnded = false;
 };
