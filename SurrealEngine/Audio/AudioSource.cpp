@@ -430,7 +430,7 @@ public:
 class OpenMPTAudioSource : public AudioSource
 {
 public:
-	OpenMPTAudioSource(Array<uint8_t> initfiledata, bool loop, int subsong)
+	OpenMPTAudioSource(Array<uint8_t> initfiledata, bool loop, int section)
 	{
 		uint8_t* data = initfiledata.begin();
 		size_t size = initfiledata.size();
@@ -443,11 +443,12 @@ public:
 		// TODO: log param defaults to std::clog, do we want to keep it that way?
 		module = new openmpt::module(data, size);
 
-		subsong = clamp(subsong, 0, module->get_num_subsongs() - 1);
-		if (subsong != 0)
-			module->select_subsong(subsong);
-
-		// TODO: mimic galaxy and look for the next non-empty pattern
+		// The section of a song is a position in its order list: Galaxy starts the song and then calls
+		// glxControlMusic with GLX_SETPOSITION and the section number (UGalaxyAudioSubsystem::Update).
+		// A sub-song of OpenMPT is not the same thing. In most songs of Deus Ex, the sub-song with the number of
+		// the combat section starts at the order of a different section.
+		if (section > 0 && section < module->get_num_orders())
+			module->set_position_order_row(section, 0);
 
 		module->set_repeat_count(-1);
 	}
@@ -485,6 +486,11 @@ public:
 		return module->read_interleaved_stereo(GetFrequency(), samples / GetChannels(), output);
 	}
 
+	int GetOrderPosition() override
+	{
+		return module ? module->get_current_order() : -1;
+	}
+
 	openmpt::module* module;
 };
 
@@ -508,9 +514,9 @@ std::unique_ptr<AudioSource> AudioSource::CreateOgg(Array<uint8_t> filedata, boo
 	return std::make_unique<OggAudioSource>(std::move(filedata), loop);
 }
 
-std::unique_ptr<AudioSource> AudioSource::CreateMod(Array<uint8_t> filedata, bool loop, int subsong)
+std::unique_ptr<AudioSource> AudioSource::CreateMod(Array<uint8_t> filedata, bool loop, int section)
 {
-	return std::make_unique<OpenMPTAudioSource>(filedata, loop, subsong);
+	return std::make_unique<OpenMPTAudioSource>(filedata, loop, section);
 }
 
 std::unique_ptr<AudioSource> AudioSource::TryCreateFromFile(const std::string& FilePath, bool loop)

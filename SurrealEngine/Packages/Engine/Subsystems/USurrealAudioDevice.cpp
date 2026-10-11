@@ -1,5 +1,6 @@
 
 #include "Precomp.h"
+#include "Utils/Logger.h"
 #include "USurrealAudioDevice.h"
 #include "Engine.h"
 #include "Package/PackageManager.h"
@@ -378,7 +379,7 @@ void USurrealAudioDevice::UpdateMusic()
 
 		if (CurrentSong && UseDigitalMusic)
 		{
-			int subsong = CurrentSection != 255 ? CurrentSection : 0;
+			int section = CurrentSection != 255 ? CurrentSection : 0;
 
 			std::unique_ptr<AudioSource> source;
 			if (CurrentSong->Format == "mp3" || CurrentSong->Format == "mp2")
@@ -388,10 +389,13 @@ void USurrealAudioDevice::UpdateMusic()
 			else if (CurrentSong->Format == "wav")
 				source = AudioSource::CreateWav(CurrentSong->Data);
 			else
-				source = AudioSource::CreateMod(CurrentSong->Data, true, subsong);
+				source = AudioSource::CreateMod(CurrentSong->Data, true, section);
 
 			if (source)
+			{
+				LogMessage("Music: " + CurrentSong->Name.ToString() + " section " + std::to_string(section) + " starts at order " + std::to_string(source->GetOrderPosition()));
 				m_Device->PlayMusic(std::move(source));
+			}
 		}
 
 		m_Viewport->Actor()->Transition() = MTRAN_None;
