@@ -595,6 +595,36 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		perfNativeCalls = Frame::NativeCallCount;
 		perfStatements = Frame::StatementCount;
 	}
+	else if (e.Command == "windows")
+	{
+		// windows: log each visible window of the Deus Ex interface: class, place in its parent, size, and flags.
+		// "focus" marks the window that gets the keys, "mouse" the window under the mouse.
+		URootWindow* root = engine->dxRootWindow;
+		if (!root)
+		{
+			LogMessage("Harness: windows: no root window");
+		}
+		else
+		{
+			struct Dump
+			{
+				static void Window(URootWindow* root, UWindow* window, int depth)
+				{
+					if (!window->bIsVisible())
+						return;
+					char buf[400];
+					snprintf(buf, sizeof(buf), "Harness: window %*s%s x=%d y=%d w=%d h=%d%s%s%s%s", depth * 2, "", UObject::GetUClassName(window).ToString().c_str(),
+						(int)window->UsedX, (int)window->UsedY, (int)window->Width(), (int)window->Height(),
+						window->bIsSelectable() ? " selectable" : "", window->bIsSensitive() ? "" : " not-sensitive",
+						window == root->FocusWindow() ? " focus" : "", window == root->lastMouseWindow() ? " mouse" : "");
+					LogMessage(buf);
+					for (UWindow* child = window->lastChild(); child; child = child->prevSibling())
+						Window(root, child, depth + 1);
+				}
+			};
+			Dump::Window(root, root, 0);
+		}
+	}
 	else if (e.Command == "showtex")
 	{
 		// showtex PKG.NAME ...: find each texture in its package. A fire texture then shows how its sparks look.

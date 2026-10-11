@@ -39,6 +39,7 @@ class UActor;
 //   setprop CLASS PROPERTY VALUE    set a property on each live actor of that class
 //   dump CLASS [RADIUS] [PROPS]     log state and location of each actor of that class, with the listed properties (a,b,c)
 //   showtex PKG.NAME [PKG.NAME ...] draw these textures in a grid over the picture in each frame (no names: stop)
+//   windows                         log the tree of the visible Deus Ex interface windows with place and size
 //   log TEXT | quit
 class Harness
 {
