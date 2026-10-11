@@ -85,16 +85,12 @@ bool UScriptedPawn::HaveSeenCarcass(const NameString& CarcassName)
 
 bool UScriptedPawn::IsValidEnemy(UPawn* TestEnemy, std::optional<bool> bCheckAlliance)
 {
-	if (!UObject::TryCast<UScriptedPawn>(TestEnemy) || TestEnemy == this || !bBlockSight() || bDeleteMe() || UObject::TryCast<UScriptedPawn>(TestEnemy)->KillCount() < 1)
+	// Follows AScriptedPawn::IsValidEnemy in DeusEx.dll (build 1112fm). bCheckAlliance is true by default.
+	if (!TestEnemy || TestEnemy == this || TestEnemy->bDeleteMe() || !TestEnemy->IsDetectable() || TestEnemy->Health() < 1)
 		return false;
-	if (bCheckAlliance)
-	{
-		uint8_t retval = GetPawnAllianceType(TestEnemy);
-		if (retval != (uint8_t)EAllianceType::ALLIANCE_Hostile)
-		{
-			return false;
-		}
-		return true;
-	}
-	return false;
+
+	if (!bCheckAlliance || *bCheckAlliance)
+		return GetPawnAllianceType(TestEnemy) == (uint8_t)EAllianceType::ALLIANCE_Hostile;
+
+	return true;
 }
