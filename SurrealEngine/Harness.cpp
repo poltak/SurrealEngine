@@ -448,7 +448,23 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			(void)obj;
 			objects++;
 		}
-		LogMessage("Harness: mem resident=" + std::to_string(ResidentMemoryMB()) + " MB objects=" + std::to_string(objects) + " actors=" + std::to_string(engine->Level ? engine->Level->Actors.size() : 0));
+		// The objects of the current level and the size of their property data, and the lightmap cache of the level
+		size_t levelObjects = 0, levelProps = 0, allProps = 0;
+		for (GCObject* gcobj : GC::GetObjects())
+		{
+			UObject* uobj = dynamic_cast<UObject*>(gcobj);
+			if (!uobj)
+				continue;
+			allProps += uobj->PropertyData.Size;
+			if (uobj->package == engine->LevelPackage)
+			{
+				levelObjects++;
+				levelProps += uobj->PropertyData.Size;
+			}
+		}
+		size_t lightmaps = engine->Level ? engine->Level->Light.GetMemoryUsage() : 0;
+		LogMessage("Harness: mem resident=" + std::to_string(ResidentMemoryMB()) + " MB objects=" + std::to_string(objects) + " actors=" + std::to_string(engine->Level ? engine->Level->Actors.size() : 0) +
+			" levelobjects=" + std::to_string(levelObjects) + " levelprops=" + std::to_string(levelProps / 1024) + " KB allprops=" + std::to_string(allProps / (1024 * 1024)) + " MB lightmaps=" + std::to_string(lightmaps / 1024) + " KB");
 	}
 	else if (e.Command == "perf")
 	{
