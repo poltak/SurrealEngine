@@ -47,18 +47,23 @@ public:
 	bool SetVector(const NameString& FlagName, const vec3& NewValue, std::optional<bool> bAdd, std::optional<int> expiration);
 
 	UFlag* GetFlag(const NameString& flagName, uint8_t flagType);
+	void AddFlag(UFlag* flag);
+	void RemoveFlag(UFlag* flag);
 
 	template<typename T>
-	T* GetOrCreateFlag(const NameString& FlagName, std::optional<bool> bAdd, std::optional<int> expiration, EFlagType flagType, const char* flagClassName);
+	T* GetOrCreateFlag(const NameString& FlagName, std::optional<bool> bAdd, EFlagType flagType, const char* flagClassName);
 
 	int& defaultFlagExpiration() { return Value<int>(PropOffsets_FlagBase.defaultFlagExpiration); }
 	FixedArrayView<UFlag*, 64> hashTable() { return FixedArray<UFlag*, 64>(PropOffsets_FlagBase.hashTable); }
 
+	// Flag type 7 means all flag types
+	static const int AllFlagTypes = 7;
+
 	struct FlagIterator
 	{
-		int HashPos = 0;
-		uint8_t FlagType = 0;
-		bool FlagTypeSet = false;
+		int FlagType = AllFlagTypes;
+		UFlag* Current = nullptr;
+		int Bucket = -1;
 	};
 
 	std::unordered_map<int, FlagIterator> FlagIterators;
@@ -67,4 +72,8 @@ public:
 	std::vector<UClass*> FlagClasses;
 
 	static const int HashTableSize = 64;
+
+private:
+	UFlag* FindName(const NameString& flagName, uint8_t flagType, UFlag**& link);
+	void SetExpiration(UFlag* flag, std::optional<int> expiration);
 };
