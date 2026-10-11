@@ -9,6 +9,10 @@
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Core/UClass.h"
 #include "Native/NPlayerPawn.h"
+#include "VM/NativeFunc.h"
+#include "GC/GC.h"
+#include "Package/Package.h"
+#include "Package/PackageManager.h"
 #include "Packages/Engine/Actors/Inventory/UInventory.h"
 #include "Packages/Extension/UPlayerPawnExt.h"
 #include "Packages/Extension/Flags/UFlagBase.h"
@@ -46,6 +50,7 @@ void Harness::Init()
 	Mute = commandline->HasArg({}, "--mute");
 	TraceKeys = commandline->HasArg({}, "--tracekeys");
 	TraceAI = commandline->HasArg({}, "--traceai");
+	CheckNatives = commandline->HasArg({}, "--checknatives");
 	double fixedFps = commandline->GetArgDouble({}, "--fixed-fps", 0.0);
 	FixedDelta = fixedFps > 0.0 ? 1.0 / fixedFps : 0.0;
 	Seed = commandline->GetArgInt({}, "--seed", -1);
@@ -488,10 +493,61 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	}
 }
 
+// Loads the script packages of the game and logs each native function that the engine has no handler for.
+// A script call to such a function stops the engine with "Unknown native function".
+static void CheckNativeFunctions(Engine* engine)
+{
+	for (const char* name : { "Core", "Engine", "Extension", "DeusEx", "ConSys", "DeusExText", "DeusExUI", "IpDrv", "DeusExCharacters", "DeusExDeco", "DeusExItems" })
+	{
+		try
+		{
+			if (Package* package = engine->packages->GetPackage(name))
+				package->LoadAll();
+		}
+		catch (const std::exception& e)
+		{
+			LogMessage(std::string("Harness: checknatives: could not load ") + name + ": " + e.what());
+		}
+	}
+
+	std::vector<std::string> missing;
+	int total = 0;
+	for (GCObject* gcobj : GC::GetObjects())
+	{
+		UFunction* func = dynamic_cast<UFunction*>(gcobj);
+		if (!func || !AllFlags(func->FuncFlags, FunctionFlags::Native) || !func->NativeStruct)
+			continue;
+		total++;
+
+		bool found = false;
+		if (func->NativeFuncIndex != 0)
+			found = (size_t)func->NativeFuncIndex < NativeFunctions::NativeByIndex.size() && NativeFunctions::NativeByIndex[func->NativeFuncIndex];
+		else
+			found = (bool)NativeFunctions::NativeByName[{ func->Name, func->NativeStruct->Name }];
+
+		if (!found)
+			missing.push_back(func->NativeStruct->Name.ToString() + "." + func->Name.ToString() + " (" + std::to_string(func->NativeFuncIndex) + ")");
+	}
+
+	std::sort(missing.begin(), missing.end());
+	missing.erase(std::unique(missing.begin(), missing.end()), missing.end());
+	LogMessage("Harness: checknatives: " + std::to_string(total) + " native functions, " + std::to_string(missing.size()) + " without a handler");
+	for (const std::string& name : missing)
+		LogMessage("Harness: checknatives missing: " + name);
+}
+
 void Harness::Tick(Engine* engine)
 {
 	if (!initialized)
 		return;
+
+	if (CheckNatives)
+	{
+		CheckNatives = false;
+		CheckNativeFunctions(engine);
+		engine->quit = true;
+		return;
+	}
 
 	// A tiling window manager can resize the window after it opens. Put the requested size back.
 	if (!winSize.empty() && engine->TotalTime >= nextWinSizeCheck)

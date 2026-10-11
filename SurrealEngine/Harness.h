@@ -56,6 +56,7 @@ public:
 	bool Mute = false;       // --mute: no sound output
 	bool TraceAI = false;    // --traceai: log each step of AICanSee for a player target
 	bool TraceKeys = false; // --tracekeys: log how the Deus Ex window system routes each key event
+	bool CheckNatives = false; // --checknatives: log each native script function that has no handler, then quit
 
 private:
 	struct Event
