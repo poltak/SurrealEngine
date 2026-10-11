@@ -11,6 +11,8 @@
 #include "Packages/Engine/Resources/Level/ULevel.h"
 #include "Utils/CommandLine.h"
 #include "VM/ExpressionValue.h"
+#include "VM/ScriptCall.h"
+#include "Packages/Core/UFunction.h"
 #include "Utils/Logger.h"
 #include "Utils/File.h"
 #include <algorithm>
@@ -234,6 +236,33 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 				player->ViewRotation() = r;
 				player->SetRotation(r);
 			}
+		}
+	}
+	else if (e.Command == "findfunc")
+	{
+		// findfunc <class> <function>: log which class holds the script function that the first actor of that class would call
+		std::string className, funcName;
+		std::istringstream parts(e.Args);
+		parts >> className >> funcName;
+		for (UActor* actor : engine->Level->Actors)
+		{
+			if (!actor || !actor->IsA(className))
+				continue;
+			UFunction* func = FindEventFunction(actor, funcName);
+			std::string text = "Harness: findfunc " + actor->Name.ToString() + " (state " + actor->GetStateName().ToString() + ") " + funcName + " -> ";
+			if (func)
+			{
+				std::string owner;
+				for (UStruct* st = func->StructParent; st; st = st->StructParent)
+					owner = st->Name.ToString() + (owner.empty() ? "" : "." + owner);
+				text += owner + "." + func->Name.ToString() + " bytecode=" + std::to_string(func->BytecodeRaw.size()) + " native=" + std::to_string((int)AllFlags(func->FuncFlags, FunctionFlags::Native));
+			}
+			else
+			{
+				text += "none";
+			}
+			LogMessage(text);
+			break;
 		}
 	}
 	else if (e.Command == "setprop")

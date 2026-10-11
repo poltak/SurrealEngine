@@ -41,6 +41,13 @@ public:
 	uint8_t GetPawnAllianceType(UPawn* QueryPawn);
 	bool HaveSeenCarcass(const NameString& CarcassName);
 	bool IsValidEnemy(UPawn* TestEnemy, std::optional<bool> bCheckAlliance);
+
+	void Tick(float elapsed) override;
+
+private:
+	bool NativeTick(float elapsed);
+	void UpdateAgitation(float elapsed);
+	void UpdateFear(float elapsed);
 };
 
 struct XAIParams
