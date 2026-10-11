@@ -10,6 +10,8 @@
 #include "Packages/Core/UClass.h"
 #include "Native/NPlayerPawn.h"
 #include "VM/NativeFunc.h"
+#include "VM/Iterator.h"
+#include "Math/coords.h"
 #include "GC/GC.h"
 #include "Package/Package.h"
 #include "Package/PackageManager.h"
@@ -418,6 +420,33 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
 		if (player && !e.Args.empty())
 			NPlayerPawn::ClientTravel(player, e.Args, (uint8_t)ETravelType::TRAVEL_Relative, true);
+	}
+	else if (e.Command == "tracetex")
+	{
+		// tracetex [YAWOFFSET] [PITCHOFFSET]: trace from the eye of the player and log what the line hits (actor, surface texture)
+		int yawOffset = 0, pitchOffset = 0;
+		std::istringstream parts(e.Args);
+		parts >> yawOffset >> pitchOffset;
+		UPawn* player = engine->viewport ? UObject::TryCast<UPawn>(engine->viewport->Actor()) : nullptr;
+		if (player)
+		{
+			vec3 start = player->Location();
+			start.z += player->EyeHeight();
+			Rotator rot = player->ViewRotation();
+			rot.Yaw += yawOffset;
+			rot.Pitch += pitchOffset;
+			vec3 X, Y, Z;
+			Coords::Rotation(rot).GetAxes(X, Y, Z);
+			auto hits = CollectMultiLineCheckHits(player, start + X * 4000.0f, start, vec3(0.0f), true);
+			std::string text = "Harness: tracetex " + std::to_string(yawOffset) + " " + std::to_string(pitchOffset) + ":";
+			for (const TraceHitInfo& hit : hits)
+			{
+				char buf[256];
+				snprintf(buf, sizeof(buf), " [%s tex=%s group=%s flags=0x%x dist=%.0f]", hit.Actor ? hit.Actor->Name.ToString().c_str() : "none", hit.TexName.ToString().c_str(), hit.TexGroup.ToString().c_str(), hit.Flags, length(hit.HitLoc - start));
+				text += buf;
+			}
+			LogMessage(text);
+		}
 	}
 	else if (e.Command == "flags")
 	{
