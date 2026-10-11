@@ -104,6 +104,7 @@ private:
 	uint64_t perfFrames = 0;
 	uint64_t perfFramesAtReport = 0;
 	double perfTimeAtReport = 0.0;
+	double perfCpuAtReport = 0.0;
 	uint64_t perfScriptCalls = 0;
 	uint64_t perfNativeCalls = 0;
 	uint64_t perfStatements = 0;

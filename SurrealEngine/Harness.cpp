@@ -2,6 +2,7 @@
 #include "Precomp.h"
 #include "Harness.h"
 #include <thread>
+#include <time.h>
 #include <filesystem>
 #include <chrono>
 #include "Engine.h"
@@ -101,6 +102,17 @@ void Harness::Init()
 	std::string script = commandline->GetArg({}, "--script");
 	if (!script.empty())
 		LoadScript(script);
+}
+
+// The processor time of this thread in seconds. A frame time from this clock has no wait for the display in it.
+static double ThreadCpuSeconds()
+{
+#if defined(__APPLE__) || defined(__linux__)
+	timespec ts = {};
+	if (clock_gettime(CLOCK_THREAD_CPUTIME_ID, &ts) == 0)
+		return (double)ts.tv_sec + (double)ts.tv_nsec * 1e-9;
+#endif
+	return 0.0;
 }
 
 bool Harness::GetWindowSize(int& width, int& height) const
@@ -523,14 +535,18 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	else if (e.Command == "perf")
 	{
 		// perf: log the mean frame time in real time and the script work for each frame since the last "perf" command
+		// "ms" is real time. A window that the display shows cannot get frames faster than the display takes them,
+		// so "ms" has a lower limit then. "cpums" is the processor time of the main thread and has no such limit.
 		double now = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		double cpuNow = ThreadCpuSeconds();
 		uint64_t frames = perfFrames - perfFramesAtReport;
 		if (perfTimeAtReport != 0.0 && frames > 0)
 		{
 			double ms = (now - perfTimeAtReport) * 1000.0 / frames;
+			double cpums = (cpuNow - perfCpuAtReport) * 1000.0 / frames;
 			char text[256];
-			snprintf(text, sizeof(text), "Harness: perf frames=%llu ms=%.2f fps=%.1f scriptcalls=%llu nativecalls=%llu statements=%llu (each frame)",
-				(unsigned long long)frames, ms, 1000.0 / ms,
+			snprintf(text, sizeof(text), "Harness: perf frames=%llu ms=%.2f cpums=%.2f fps=%.1f scriptcalls=%llu nativecalls=%llu statements=%llu (each frame)",
+				(unsigned long long)frames, ms, cpums, 1000.0 / ms,
 				(unsigned long long)((Frame::ScriptCallCount - perfScriptCalls) / frames),
 				(unsigned long long)((Frame::NativeCallCount - perfNativeCalls) / frames),
 				(unsigned long long)((Frame::StatementCount - perfStatements) / frames));
@@ -541,6 +557,7 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			LogMessage(text);
 		}
 		perfTimeAtReport = now;
+		perfCpuAtReport = cpuNow;
 		perfFramesAtReport = perfFrames;
 		perfScriptCalls = Frame::ScriptCallCount;
 		perfNativeCalls = Frame::NativeCallCount;
