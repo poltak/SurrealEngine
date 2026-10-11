@@ -38,9 +38,84 @@ void UActor::TickPhysics(float elapsed)
 	}
 }
 
-void UActor::SetPhysics(uint8_t newPhysics)
+void UActor::SetPhysics(uint8_t newPhysics, UActor* newFloor)
 {
+	if (!engine->LaunchInfo.IsDeusEx())
+	{
+		Physics() = newPhysics;
+		return;
+	}
+
+	// As AActor::setPhysics in the Engine.dll of Deus Ex (build 1112fm): a change of the physics mode also sets the
+	// base. An actor that walks or rests gets the floor as its base, and each other mode has no base.
+	if (Physics() == newPhysics)
+		return;
+
 	Physics() = newPhysics;
+	if (newPhysics == PHYS_Walking || newPhysics == PHYS_None || newPhysics == PHYS_Rolling || newPhysics == PHYS_Rotating || newPhysics == PHYS_Spider)
+	{
+		if (!newFloor)
+			FindBase();
+		else if (ActorBase() != newFloor)
+			SetSupportBase(newFloor);
+	}
+	else if (ActorBase())
+	{
+		SetBase(nullptr, true);
+	}
+
+	// A script event of the lines above can change the mode again
+	if (Physics() == PHYS_None || Physics() == PHYS_Rotating)
+	{
+		Velocity() = vec3(0.0f);
+		Acceleration() = vec3(0.0f);
+	}
+}
+
+// As AActor::SetSupportBase in the Engine.dll of Deus Ex: the actor below decides what happens with an actor that
+// comes to stand on it. The SupportActor event of the Actor script makes it the base. The scripts of pawns,
+// decorations and movers also give damage for a hard landing, and some of them push the actor off.
+void UActor::SetSupportBase(UActor* newBase)
+{
+	if (newBase)
+		CallEvent(newBase, "SupportActor", { ExpressionValue::ObjectValue(this) });
+	else
+		SetBase(nullptr, true);
+}
+
+// As AActor::FindBase in the Engine.dll of Deus Ex: the actor or the level geometry that is not more than 8 units
+// below this actor becomes its base
+void UActor::FindBase()
+{
+	UActor* newBase = nullptr;
+	if (ULevel* level = XLevel())
+	{
+		bool useBlockPlayers = UObject::TryCast<UPlayerPawn>(this) || UObject::TryCast<UProjectile>(this);
+		for (const CollisionHit& hit : level->Collision.Trace(Location(), Location() - vec3(0.0f, 0.0f, 8.0f), CollisionHeight(), CollisionRadius(), true, true, false))
+		{
+			if (!hit.Actor)
+			{
+				newBase = Level();
+				break;
+			}
+			if (hit.Actor == this)
+				continue;
+
+			bool isBlocking;
+			if (useBlockPlayers || UObject::TryCast<UPlayerPawn>(hit.Actor) || UObject::TryCast<UProjectile>(hit.Actor))
+				isBlocking = hit.Actor->bBlockPlayers() && bBlockPlayers();
+			else
+				isBlocking = hit.Actor->bBlockActors() && bBlockActors();
+			if (isBlocking)
+			{
+				newBase = hit.Actor;
+				break;
+			}
+		}
+	}
+
+	if (ActorBase() != newBase && (!newBase || !newBase->IsBasedOn(this)))
+		SetSupportBase(newBase);
 }
 
 void UActor::SetCollision(bool newColActors, bool newBlockActors, bool newBlockPlayers)
@@ -156,7 +231,12 @@ void UActor::PhysLanded(UActor* hitActor, const vec3& hitNormal)
 
 	if (Physics() == PHYS_Falling) // Landed event might have changed the physics mode
 	{
-		if (UObject::TryCast<UPawn>(this))
+		if (engine->LaunchInfo.IsDeusEx())
+		{
+			// As AActor::processLanded: the new physics mode comes with the floor, and the floor gets the SupportActor event
+			SetPhysics(UObject::TryCast<UPawn>(this) ? PHYS_Walking : PHYS_None, FloorBase(hitActor));
+		}
+		else if (UObject::TryCast<UPawn>(this))
 		{
 			SetPhysics(PHYS_Walking);
 			SetBase(FloorBase(hitActor), true);
@@ -248,7 +328,13 @@ bool UActor::TryStepToGround(vec3 stepDownDelta)
 	// We could reach the ground. Step down there.
 	floorHit = TryMove(stepDownDelta);
 	if (floorHit.Fraction != 1.0f)
-		SetBase(FloorBase(floorHit.Actor), true);
+	{
+		UActor* floor = FloorBase(floorHit.Actor);
+		if (!engine->LaunchInfo.IsDeusEx())
+			SetBase(floor, true);
+		else if (ActorBase() != floor)
+			SetSupportBase(floor); // As APawn::physWalking of Deus Ex: a new floor gets the SupportActor event
+	}
 	return true;
 }
 

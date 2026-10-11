@@ -429,7 +429,9 @@ public:
 
 	virtual void TickRotating(float elapsed);
 
-	void SetPhysics(uint8_t newPhysics);
+	void SetPhysics(uint8_t newPhysics, UActor* newFloor = nullptr);
+	void SetSupportBase(UActor* newBase);
+	void FindBase();
 	void SetCollision(bool newColActors, bool newBlockActors, bool newBlockPlayers);
 
 	std::pair<bool, vec3> CheckLocation(vec3 location, float radius, float height, bool check, bool assumeFit = false);
