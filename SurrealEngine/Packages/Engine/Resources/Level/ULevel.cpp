@@ -89,6 +89,16 @@ void ULevel::TickActor(float elapsed, UActor* actor)
 	}
 }
 
+bool ULevel::HasActorName(const NameString& name) const
+{
+	for (UActor* actor : Actors)
+	{
+		if (actor && actor->Name == name)
+			return true;
+	}
+	return false;
+}
+
 void ULevel::Tick(float elapsed, bool gamePaused)
 {
 	if (gamePaused)

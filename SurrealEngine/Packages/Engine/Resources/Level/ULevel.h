@@ -44,6 +44,8 @@ public:
 
 	void Tick(float elapsed, bool gamePaused);
 
+	bool HasActorName(const NameString& name) const;
+
 	Array<LevelReachSpec> ReachSpecs;
 	UModel* Model = nullptr;
 

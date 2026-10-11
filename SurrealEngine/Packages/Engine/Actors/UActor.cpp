@@ -46,9 +46,24 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	}
 
 	// To do: package needs to be grabbed from outer, or the "transient package" if it is None, a virtual package for runtime objects
-	// To do: find unique new name in the package
 	static std::map<NameString, int> nextIndex;
-	NameString name = SpawnClass->Name.ToString() + std::to_string(nextIndex[SpawnClass->Name]++);
+	NameString name;
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// As UObject::MakeUniqueObjectName: the class name with no number at its end, then the first number of the
+		// class counter that gives a name that no actor of the level has. A map has actors with such names from the editor.
+		std::string baseName = SpawnClass->Name.ToString();
+		while (!baseName.empty() && baseName.back() >= '0' && baseName.back() <= '9')
+			baseName.pop_back();
+		do
+		{
+			name = baseName + std::to_string(nextIndex[SpawnClass->Name]++);
+		} while (XLevel()->HasActorName(name));
+	}
+	else
+	{
+		name = SpawnClass->Name.ToString() + std::to_string(nextIndex[SpawnClass->Name]++);
+	}
 	UActor* actor = UObject::Cast<UActor>(engine->LevelPackage->NewObject(name, UObject::Cast<UClass>(SpawnClass), ObjectFlags::Transient, true));
 
 	actor->Outer() = XLevel()->Outer();
