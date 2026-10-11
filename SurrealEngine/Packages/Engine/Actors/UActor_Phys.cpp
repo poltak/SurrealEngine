@@ -248,34 +248,73 @@ void UActor::RecomputeVelocityFromDisplacement(float elapsed)
 		Velocity() = (Location() - OldLocation()) / elapsed;
 }
 
-std::pair<bool, vec3> UActor::CheckLocation(vec3 location, float radius, float height, bool check)
+// Finds a place for the collision box of an actor at the location or near it.
+// This is ULevel::FindSpot and ULevel::AdjustSpot of Engine.dll (build 1112fm) with no check for other actors.
+// The search moves the box out of the walls that it cuts: first along the three axes, then along the eight diagonals.
+// It gives up when the box moved more than about 1.2 times its diagonal.
+//
+// assumeFit: use the location with no search when the box fits there. ULevel::SpawnActor does this.
+// ULevel::FarMoveActor (SetLocation and the reach tests of a pawn) does the search along the axes first.
+std::pair<bool, vec3> UActor::CheckLocation(vec3 location, float radius, float height, bool check, bool assumeFit)
 {
-	// Search for a valid spot near the location
-
 	if (!check)
 		return { true, location };
 
-	// What is a reasonable size for this grid? what did UE1 do?
-	int offset[] = { 0, 1, -1 };
-	bool found = false;
-	float scale = std::max(radius, height);
-	for (int z = 0; z < 3 && !found; z++)
+	// ULevel::SinglePointCheck with the level geometry only
+	auto fits = [&](const vec3& point)
 	{
-		for (int y = 0; y < 3 && !found; y++)
+		return XLevel()->Collision.OverlapTest(point, height, radius, false, true, false).empty();
+	};
+
+	vec3 extent(radius, radius, height);
+	if (extent == vec3(0.0f))
+		return { fits(location), location };
+
+	if (assumeFit && fits(location))
+		return { true, location };
+
+	// ULevel::AdjustSpot: a line from the center of the box to a point on its side. If the line hits the level or a mover,
+	// move the box away from the surface by the part of the line that is behind it.
+	vec3 adjusted = location;
+	TraceFlags flags;
+	flags.world = true;
+	flags.movers = true;
+	auto adjustSpot = [&](const vec3& traceDest, float traceLen)
+	{
+		CollisionHit hit = XLevel()->Collision.TraceFirstHit(adjusted, traceDest, nullptr, vec3(0.0f), flags);
+		if (hit.Fraction < 1.0f)
+			adjusted += hit.Normal * ((1.05f - hit.Fraction) * traceLen);
+	};
+
+	for (int i = -1; i < 2; i += 2)
+	{
+		adjustSpot(adjusted + vec3(i * extent.x, 0.0f, 0.0f), extent.x);
+		adjustSpot(adjusted + vec3(0.0f, i * extent.y, 0.0f), extent.y);
+		adjustSpot(adjusted + vec3(0.0f, 0.0f, i * extent.z), extent.z);
+	}
+	if (fits(adjusted))
+		return { true, adjusted };
+
+	float diagonal = length(extent) + 2.0f;
+	for (int i = -1; i < 2; i += 2)
+	{
+		for (int j = -1; j < 2; j += 2)
 		{
-			for (int x = 0; x < 3 && !found; x++)
+			for (int k = -1; k < 2; k += 2)
 			{
-				vec3 testlocation = location + vec3(offset[x] * scale, offset[y] * scale, offset[z] * scale);
-				CollisionHitList hits = XLevel()->Collision.OverlapTest(testlocation, height, radius, false, true, false);
-				if (hits.empty())
-				{
-					location = testlocation;
-					found = true;
-				}
+				adjustSpot(adjusted + vec3(i * extent.x, j * extent.y, k * extent.z), diagonal);
 			}
 		}
 	}
-	return { found, location };
+
+	vec3 moved = adjusted - location;
+	if (dot(moved, moved) > 1.5f * dot(extent, extent))
+		return { false, location };
+
+	if (fits(adjusted))
+		return { true, adjusted };
+
+	return { false, location };
 }
 
 bool UActor::IsOverlapping(UActor* other)

@@ -33,7 +33,7 @@ UActor* UActor::Spawn(UClass* SpawnClass, std::optional<UActor*> SpawnOwner, std
 	bool bCollideWhenPlacing = SpawnClass->GetDefaultObject<UActor>()->bCollideWhenPlacing();
 	if (bCollideWorld || bCollideWhenPlacing)
 	{
-		auto result = CheckLocation(location, radius, height, bCollideWorld || bCollideWhenPlacing);
+		auto result = CheckLocation(location, radius, height, bCollideWorld || bCollideWhenPlacing, true);
 		if (result.first)
 		{
 			location = result.second;
