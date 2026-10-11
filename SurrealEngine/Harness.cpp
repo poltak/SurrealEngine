@@ -18,6 +18,9 @@
 #include "Packages/Extension/Windows/TabGroup/UClipWindow.h"
 #include "Packages/Extension/Windows/UListWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
+#include "Packages/Engine/Actors/Brush/UMover.h"
+#include "Packages/Engine/Resources/Level/UModel.h"
+#include "Packages/Engine/Resources/Level/UPolys.h"
 #include "Packages/Core/UClass.h"
 #include "Native/NPlayerPawn.h"
 #include "VM/NativeFunc.h"
@@ -274,6 +277,40 @@ bool Harness::DropRealInput(const char* what)
 	return true;
 }
 
+// The point of an actor that the player looks at. The location of a door is its hinge, which can be in a wall,
+// so for a mover this is the middle of its brush.
+static vec3 AimPoint(UActor* actor)
+{
+	UMover* mover = UObject::TryCast<UMover>(actor);
+	if (!mover || !mover->Brush() || !mover->Brush()->Polys)
+		return actor->Location();
+
+	mat4 objectToWorld = mat4::translate(mover->Location()) * Coords::Rotation(mover->Rotation()).ToMatrix() * mat4::scale(mover->MainScale().Scale) * mat4::translate(-mover->PrePivot());
+	vec3 low(0.0f), high(0.0f);
+	bool first = true;
+	for (const Poly& poly : mover->Brush()->Polys->Polys)
+	{
+		for (const vec3& vertex : poly.Vertices)
+		{
+			vec3 p = (objectToWorld * vec4(vertex, 1.0f)).xyz();
+			if (first)
+			{
+				low = p;
+				high = p;
+				first = false;
+			}
+			else
+			{
+				low = vec3(std::min(low.x, p.x), std::min(low.y, p.y), std::min(low.z, p.z));
+				high = vec3(std::max(high.x, p.x), std::max(high.y, p.y), std::max(high.z, p.z));
+			}
+		}
+	}
+	if (first)
+		return actor->Location();
+	return (low + high) * 0.5f;
+}
+
 void Harness::RunEvent(Engine* engine, const Event& e)
 {
 	LogMessage("Harness: " + e.Command + " " + e.Args);
@@ -398,7 +435,8 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	}
 	else if (e.Command == "teleportto")
 	{
-		// teleportto <actor name or class> [distance]: put the player near that actor, with a free line to it, and aim at it
+		// teleportto <actor name or class> [distance]: put the player near that actor, with a free line to it, and aim at it.
+		// For a door or another mover, the place is near the middle of its brush.
 		std::string targetName;
 		float distance = 70.0f;
 		std::istringstream parts(e.Args);
@@ -436,16 +474,20 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		else
 		{
 			vec3 oldLocation = player->Location();
+			vec3 targetPoint = AimPoint(target);
+			bool isMover = UObject::TryCast<UMover>(target) != nullptr;
 			bool done = false;
 			for (int step = 0; step < 16 && !done; step++)
 			{
 				float angle = step * (2.0f * 3.14159265f / 16.0f);
-				vec3 spot = target->Location() + vec3(std::cos(angle), std::sin(angle), 0.0f) * distance;
+				vec3 spot = targetPoint + vec3(std::cos(angle), std::sin(angle), 0.0f) * distance;
 				spot.z += std::max(player->CollisionHeight() - target->CollisionHeight(), 0.0f) + 2.0f;
 				if (!player->SetLocation(spot))
 					continue;
 				vec3 eye = player->Location() + vec3(0.0f, 0.0f, player->BaseEyeHeight());
-				if (engine->Level->Collision.TraceAnyHit(eye, target->Location(), player, false, true, true))
+				// The middle of a mover is inside its brush, so the free line ends before it
+				vec3 lineEnd = isMover ? eye + (targetPoint - eye) * 0.8f : targetPoint;
+				if (engine->Level->Collision.TraceAnyHit(eye, lineEnd, player, false, true, true))
 					continue;
 				player->Velocity() = vec3(0.0f);
 				// The player can drop to the floor after this. Keep the aim on the target for a short time.
@@ -880,7 +922,7 @@ void Harness::Tick(Engine* engine)
 		else
 		{
 			vec3 eye = player->Location() + vec3(0.0f, 0.0f, player->EyeHeight());
-			Rotator aim = Rotator::FromVector(aimTarget->Location() - eye);
+			Rotator aim = Rotator::FromVector(AimPoint(aimTarget) - eye);
 			player->ViewRotation() = Rotator(aim.Pitch & 0xffff, aim.Yaw & 0xffff, 0);
 			player->SetRotation(Rotator(0, aim.Yaw & 0xffff, 0));
 		}
