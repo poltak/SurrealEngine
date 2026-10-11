@@ -340,17 +340,42 @@ bool UWindow::ConvertVectorToCoordinates(const vec3& Location, float& relativeX,
 	return relativeX >= 0.0f && relativeX < Width() && relativeY >= 0.0f && relativeY < Height();
 }
 
+// As XWindow::PreDestroy and XWindow::CleanUp in Extension.dll
 void UWindow::Destroy()
 {
-	UWindow* parent = parentOwner();
-	DetachFromParent();
-	if (parent)
+	if (bBeingDestroyed() || destroying)
+		return;
+	destroying = true;
+
+	// A window that shows goes out of view first. Its scripts and the scripts of its children get the
+	// VisibilityChanged event, and the focus and the mouse go away from it.
+	if (IsVisible(true))
+		SetVisibility(false);
+	SetSelectability(false);
+
+	// Each child gets its DestroyWindow event before this window gets it
+	DestroyAllChildren();
+
+	DestroyWindow();
+
+	URootWindow* root = GetRootWindow();
+	if (UWindow* parent = parentOwner())
 	{
 		parent->ChildRemoved(this);
 		for (UWindow* ancestor = parent; ancestor; ancestor = ancestor->parentOwner())
 			ancestor->DescendantRemoved(this);
 	}
-	DestroyWindow();
+	if (root)
+	{
+		if (root->lastMouseWindow() == this)
+			root->lastMouseWindow() = nullptr;
+		if (root->grabbedWindow() == this)
+			root->grabbedWindow() = nullptr;
+		if (root->FocusWindow() == this)
+			root->FocusWindow() = nullptr;
+	}
+	DetachFromParent();
+	bBeingDestroyed() = true;
 }
 
 void UWindow::DetachFromParent()
@@ -371,10 +396,18 @@ void UWindow::DetachFromParent()
 	parentOwner() = nullptr;
 }
 
+// As XWindow::KillAllChildren
 void UWindow::DestroyAllChildren()
 {
-	while (firstChild())
-		firstChild()->Destroy();
+	// The script of a child can destroy other children, so take the list first
+	std::vector<UWindow*> children;
+	for (UWindow* child = firstChild(); child; child = child->nextSibling())
+		children.push_back(child);
+	for (UWindow* child : children)
+	{
+		if (child->parentOwner() == this)
+			child->Destroy();
+	}
 }
 
 void UWindow::DisableWindow()
@@ -598,17 +631,16 @@ bool UWindow::IsPointInWindow(float pointX, float pointY)
 
 bool UWindow::IsSensitive(std::optional<bool> bRecurse)
 {
-	if (bIsSensitive())
-		return true;
-	if (bRecurse && *bRecurse)
+	// XWindow::IsSensitive: without the recurse flag only the flag of this window counts.
+	// With it (the default), this window and all its parents must be sensitive.
+	if (bRecurse && !*bRecurse)
+		return bIsSensitive();
+	for (UWindow* cur = this; cur; cur = cur->parentOwner())
 	{
-		for (UWindow* cur = firstChild(); cur; cur = cur->nextSibling())
-		{
-			if (cur->IsSensitive(bRecurse))
-				return true;
-		}
+		if (!cur->bIsSensitive())
+			return false;
 	}
-	return false;
+	return true;
 }
 
 bool UWindow::IsVisible(std::optional<bool> bRecurse)
@@ -627,7 +659,8 @@ bool UWindow::IsVisible(std::optional<bool> bRecurse)
 
 void UWindow::Lower()
 {
-	if (!parentOwner())
+	// As XWindow::Lower: nothing to do for a window that is at the bottom
+	if (!parentOwner() || !prevSibling())
 		return;
 	UWindow* owner = parentOwner();
 	DetachFromParent();
@@ -643,6 +676,8 @@ void UWindow::Lower()
 		owner->firstChild() = this;
 		owner->lastChild() = this;
 	}
+	AskParentForReconfigure();
+	CheckFocusWindow();
 }
 
 // Keyboard focus navigation follows XWindow in Extension.dll (build 1112fm).
@@ -1003,7 +1038,8 @@ void UWindow::QueryGranularity(float& hGranularity, float& vGranularity)
 
 void UWindow::Raise()
 {
-	if (!parentOwner())
+	// As XWindow::Raise: nothing to do for a window that is on top
+	if (!parentOwner() || !nextSibling())
 		return;
 	UWindow* owner = parentOwner();
 	DetachFromParent();
@@ -1019,6 +1055,8 @@ void UWindow::Raise()
 		owner->firstChild() = this;
 		owner->lastChild() = this;
 	}
+	AskParentForReconfigure();
+	CheckFocusWindow();
 }
 
 void UWindow::ReleaseGC(UObject* GC)
@@ -1133,6 +1171,8 @@ void UWindow::SetChildVisibility(bool bNewVisibility)
 	// The event goes out only when the window comes into view or goes out of view on the screen
 	if (wasVisible != nowVisible)
 	{
+		CheckFocusWindow();
+		CheckGrabbedWindow();
 		InvokeVisibilityChange(nowVisible);
 		AskParentForReconfigure();
 	}
@@ -1284,16 +1324,74 @@ void UWindow::SetNormalFont(UObject* fn)
 
 void UWindow::SetSelectability(bool newSelectability)
 {
+	if (bIsSelectable() == newSelectability)
+		return;
 	bIsSelectable() = newSelectability;
+	CheckFocusWindow();
 }
 
+// As XWindow::SetSensitivity: the event goes out only when the window starts or stops to take input on the screen
 void UWindow::SetSensitivity(bool newSensitivity)
 {
-	if (bIsSensitive() != newSensitivity)
+	if (bIsSensitive() == newSensitivity)
+		return;
+
+	bool wasSensitive = IsSensitive(true);
+	bIsSensitive() = newSensitivity;
+	bool nowSensitive = IsSensitive(true);
+	if (wasSensitive != nowSensitive)
 	{
-		bIsSensitive() = newSensitivity;
-		SensitivityChanged(newSensitivity);
+		CheckFocusWindow();
+		CheckGrabbedWindow();
+		InvokeSensitivityChange(nowSensitive);
 	}
+}
+
+// XWindow::InvokeSensitivityChange: this window and each child that has its own sensitive flag get the event
+void UWindow::InvokeSensitivityChange(bool bNewSensitivity)
+{
+	SensitivityChanged(bNewSensitivity);
+	for (UWindow* child = firstChild(); child; child = child->nextSibling())
+	{
+		if (child->bIsSensitive())
+			child->InvokeSensitivityChange(bNewSensitivity);
+	}
+}
+
+// As XWindow::CheckFocusWindow: when the window with the focus cannot have it any more, the focus goes to the window
+// that had it last in the modal window on top. If there is no such window, it goes to the first window of that
+// modal window that can have it.
+void UWindow::CheckFocusWindow()
+{
+	URootWindow* root = GetRootWindow();
+	if (!root)
+		return;
+
+	UWindow* focus = root->FocusWindow();
+	if (!focus || focus->IsTraversable(true))
+		return;
+
+	UModalWindow* modal = UObject::TryCast<UModalWindow>(root->GetCurrentModal());
+	if (modal && modal->preferredFocus() && modal->preferredFocus()->IsTraversable(true))
+		root->SetRootFocusWindow(modal->preferredFocus());
+
+	if (root->FocusWindow() == focus)
+	{
+		if (root->MoveFocus(EMove::Right, true) == focus)
+			root->SetRootFocusWindow(nullptr);
+	}
+}
+
+// As XWindow::CheckGrabbedWindow: a window that does not show or that does not take input loses the mouse
+void UWindow::CheckGrabbedWindow()
+{
+	URootWindow* root = GetRootWindow();
+	if (!root)
+		return;
+
+	UWindow* grab = root->grabbedWindow();
+	if (grab && (!grab->IsVisible(true) || !grab->IsSensitive(true)))
+		root->grabbedWindow() = nullptr;
 }
 
 void UWindow::SetSoundVolume(float newVolume)

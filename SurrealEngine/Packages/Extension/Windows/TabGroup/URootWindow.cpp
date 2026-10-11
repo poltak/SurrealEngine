@@ -114,6 +114,14 @@ void URootWindow::InitWindow()
 	UModalWindow::InitWindow();
 }
 
+void URootWindow::DescendantRemoved(UWindow* descendant)
+{
+	// As XRootWindow::DescendantRemoved: the click count does not go on with a window that is gone
+	if (lastButtonWindow() == descendant)
+		lastButtonWindow() = nullptr;
+	UModalWindow::DescendantRemoved(descendant);
+}
+
 void URootWindow::WindowReady()
 {
 	SetRootCursorPos(GetVirtualWidth() * 0.5f, GetVirtualHeight() * 0.5f);

@@ -26,6 +26,7 @@ public:
 
 	void InitWindow() override;
 	void WindowReady() override;
+	void DescendantRemoved(UWindow* descendant) override;
 	void PostDrawWindow(UGC* gc) override;
 
 	bool SetRootFocusWindow(UWindow* NewFocusWindow);

@@ -202,6 +202,9 @@ public:
 	UObject* MoveFocus(EMove direction, bool forceWrap);
 	UObject* MoveTabGroup(EMove direction);
 	bool IsTraversable(bool checkModal);
+	void CheckFocusWindow();
+	void CheckGrabbedWindow();
+	void InvokeSensitivityChange(bool bNewSensitivity);
 	UObject* MoveFocusDown();
 	UObject* MoveFocusLeft();
 	UObject* MoveFocusRight();
@@ -399,6 +402,9 @@ public:
 	float UnderlineHeight = 0.0f;
 	float UsedX = 0.0f;
 	float UsedY = 0.0f;
+
+	// True while Destroy runs for this window, so a script event in it cannot start it again
+	bool destroying = false;
 
 	class WTimer
 	{
