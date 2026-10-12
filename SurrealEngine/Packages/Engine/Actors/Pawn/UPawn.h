@@ -16,6 +16,7 @@ public:
 	using UActor::UActor;
 
 	void Tick(float elapsed) override;
+	void TickPhysics(float elapsed) override;
 	void TickRotating(float elapsed) override;
 
 	void InitActorZone() override;
@@ -34,6 +35,11 @@ public:
 
 	bool TickRotateTo(const vec3& target);
 	bool TickMoveTo(const vec3& target);
+
+	// The latent moves of a pawn as the Engine.dll of Deus Ex has them
+	void StartMoveDeusEx();
+	bool PollMoveDeusEx();
+	bool MoveTowardDeusEx(const vec3& dest);
 
 	// Returns true if any of the several points of other is visible (origin, top, bottom)
 	// ignoreDistance is a Deus Ex only parameter, it is always false on Unreal.
