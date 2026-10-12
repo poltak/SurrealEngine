@@ -95,6 +95,7 @@ Engine::Engine(GameLaunchInfo launchinfo) : LaunchInfo(launchinfo)
 
 	floatprop = GC::Alloc<UFloatProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
 
+	stringprop = GC::Alloc<UStringProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
 	if (LaunchInfo.IsDeusEx())
 	{
 		auto extpkg = packages->GetPackage("Extension");

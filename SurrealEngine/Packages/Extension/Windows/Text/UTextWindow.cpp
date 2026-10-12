@@ -11,10 +11,7 @@ void UTextWindow::AppendText(const std::string& NewText)
 {
 	Text() += NewText;
 	if (!NewText.empty())
-	{
-		TextModifiedByScript();
 		AskParentForReconfigure();
-	}
 }
 
 void UTextWindow::EnableTextAsAccelerator(std::optional<bool> bEnable)
@@ -95,7 +92,6 @@ void UTextWindow::SetText(const std::string& NewText)
 	if (Text() != NewText)
 	{
 		Text() = NewText;
-		TextModifiedByScript();
 		AskParentForReconfigure();
 	}
 }

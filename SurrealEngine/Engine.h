@@ -52,6 +52,7 @@ class UnrealURL;
 class VideoPlayer;
 class UnrealMipmap;
 class UFloatProperty;
+class UStringProperty;
 class UConversationMissionList;
 class UConversationList;
 class UDXSaveInfo;
@@ -159,6 +160,7 @@ public:
 	URootWindow* dxRootWindow = nullptr;
 
 	UFloatProperty* floatprop = nullptr;
+	UStringProperty* stringprop = nullptr;
 
 	ULevelInfo* EntryLevelInfo = nullptr;
 	ULevel* EntryLevel = nullptr;

@@ -7,7 +7,7 @@ class UTextWindow : public UWindow
 public:
 	using UWindow::UWindow;
 
-	void AppendText(const std::string& NewText);
+	virtual void AppendText(const std::string& NewText);
 	void EnableTextAsAccelerator(std::optional<bool> bEnable);
 	std::string GetText();
 	int GetTextLength();
@@ -18,7 +18,7 @@ public:
 	void SetMaxLines(int newMaxLines);
 	void SetMinLines(int newMinLines);
 	void SetMinWidth(float newMinWidth);
-	void SetText(const std::string& NewText);
+	virtual void SetText(const std::string& NewText);
 	void SetTextAlignments(uint8_t newHAlign, uint8_t newVAlign);
 	void SetTextMargins(float newHMargin, float newVMargin);
 	void SetWordWrap(bool bNewWordWrap);
@@ -27,8 +27,6 @@ public:
 	void ParentRequestedPreferredSize(bool bWidthSpecified, float& preferredWidth, bool bHeightSpecified, float& preferredHeight) override;
 	void ParentRequestedGranularity(float& hGranularity, float& vGranularity) override;
 	void DrawWindow(UGC* gc) override;
-
-	virtual void TextModifiedByScript() {}
 
 	uint8_t& HAlign() { return Value<uint8_t>(PropOffsets_TextWindow.HAlign); }
 	int& MaxLines() { return Value<int>(PropOffsets_TextWindow.MaxLines); }

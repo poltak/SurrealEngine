@@ -39,6 +39,9 @@ public:
 	void SetTextChangedFlag(std::optional<bool> bSet);
 	void Undo();
 
+	void SetText(const std::string& NewText) override;
+	void AppendText(const std::string& NewText) override;
+
 	void InitWindow() override;
 	void Tick(float timeElapsed) override;
 	void DrawWindow(UGC* gc) override;
@@ -46,7 +49,6 @@ public:
 	bool VirtualKeyPressed(EInputKey key, bool bRepeat) override;
 	bool MouseButtonPressed(float pointX, float pointY, EInputKey button, int numClicks) override;
 	bool MouseButtonReleased(float pointX, float pointY, EInputKey button, int numClicks) override;
-	void TextModifiedByScript() override;
 	UTexture* CursorRequested(UWindow* win, float pointX, float pointY, float& hotX, float& hotY, Color& newColor, UTexture*& shadowTexture) override;
 
 	void ActivateEdit();
@@ -102,10 +104,21 @@ public:
 	int& unchangedUndo() { return Value<int>(PropOffsets_EditWindow.unchangedUndo); }
 
 private:
-	void DispatchTextChanged(bool modified);
-	int FindNextBreakCharacter(int search_start);
-	int FindPreviousBreakCharacter(int search_start);
+	void SetCursorPoint(int newPos, bool drag);
+	void ComputeSelectArea();
+	void ShowCursor();
+	void ShowCursorArea();
+	void ReplaceText(const std::string& newText, bool select);
+	bool FilterString(const std::string& text, std::string& result);
+	bool FilterChar(std::string& ch);
+	void ChangeText();
+	int NextWord(int pos);
+	int PrevWord(int pos);
+	int StartOfLine(int pos);
+	int EndOfLine(int pos);
+	float PosToX(int pos);
+	int XToPos(float x);
 
 	bool textChanged = false;
-	static const std::string break_characters;
+	bool showCursorPending = false;
 };
