@@ -554,7 +554,7 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	}
 	else if (e.Command == "dump")
 	{
-		// dump <class> [radius] [property,property,...]
+		// dump <class or actor name> [radius] [property,property,...]
 		std::string className, extraProps;
 		float radius = 0.0f;
 		std::istringstream parts(e.Args);
@@ -571,7 +571,7 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 		UActor* player = engine->viewport ? engine->viewport->Actor() : nullptr;
 		for (UActor* actor : engine->Level->Actors)
 		{
-			if (!actor || !actor->IsA(className))
+			if (!actor || (!actor->IsA(className) && actor->Name != className))
 				continue;
 			float dist = player ? length(actor->Location() - player->Location()) : 0.0f;
 			if (radius > 0.0f && dist > radius)
