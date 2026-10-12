@@ -23,13 +23,14 @@ public:
 
 	void MoveTo(const vec3& newDestination, float speed);
 	void MoveToward(UActor* newTarget, float speed);
-	void StrafeFacing(const vec3& newDestination, UActor* newTarget);
-	void StrafeTo(const vec3& newDestination, const vec3& newFocus);
+	void StrafeFacing(const vec3& newDestination, UActor* newTarget, float speed = 1.0f);
+	void StrafeTo(const vec3& newDestination, const vec3& newFocus, float speed = 1.0f);
 	void TurnTo(const vec3& newFocus);
 	void TurnToward(UActor* newTarget);
 	void WaitForLanding();
 	void SetMoveDuration(const vec3& deltaMove);
 	float GetSpeed();
+	float StrafeSpeed(float speed);
 
 	bool TickRotateTo(const vec3& target);
 	bool TickMoveTo(const vec3& target);

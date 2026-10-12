@@ -294,24 +294,41 @@ void UPawn::MoveToward(UActor* newTarget, float speed)
 		StateFrame->LatentState = LatentRunState::MoveToward;
 }
 
-void UPawn::StrafeFacing(const vec3& newDestination, UActor* newTarget)
+// The speed of the two strafe moves. Deus Ex gave these script functions a speed argument with the default 1.0
+// (APawn::execStrafeTo and APawn::execStrafeFacing in its Engine.dll): a pawn that is not a player gets that speed,
+// with MaxDesiredSpeed as the limit. The other games give such a pawn 80 percent of MaxDesiredSpeed.
+float UPawn::StrafeSpeed(float speed)
+{
+	if (bIsPlayer())
+		return MaxDesiredSpeed();
+	if (engine->LaunchInfo.IsDeusEx())
+		return clamp(speed, 0.0f, MaxDesiredSpeed());
+	return 0.8f * MaxDesiredSpeed();
+}
+
+void UPawn::StrafeFacing(const vec3& newDestination, UActor* newTarget, float speed)
 {
 	if (!newTarget)
 		return;
 
+	// Without a new speed here, a pawn keeps the speed of its last move. A guard of Deus Ex that went from its patrol
+	// to "run and fire" then ran with its walking speed.
+	bReducedSpeed() = false;
+	DesiredSpeed() = StrafeSpeed(speed);
 	Destination() = newDestination;
 	if (engine->LaunchInfo.ue1Version > 219)
 		FaceTarget() = newTarget;
+	Focus() = newTarget->Location();
 	SetMoveDuration(newDestination - Location());
 	if (StateFrame)
 		StateFrame->LatentState = LatentRunState::StrafeFacing;
 }
 
-void UPawn::StrafeTo(const vec3& newDestination, const vec3& newFocus)
+void UPawn::StrafeTo(const vec3& newDestination, const vec3& newFocus, float speed)
 {
 	MoveTarget() = nullptr;
 	bReducedSpeed() = false;
-	DesiredSpeed() = bIsPlayer() ? MaxDesiredSpeed() : 0.8f * MaxDesiredSpeed();
+	DesiredSpeed() = StrafeSpeed(speed);
 	Destination() = newDestination;
 	Focus() = newFocus;
 	SetMoveDuration(newDestination - Location());
