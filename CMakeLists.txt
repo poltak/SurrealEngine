@@ -36,6 +36,8 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/GameApp.h
 	SurrealEngine/Harness.cpp
 	SurrealEngine/Harness.h
+	SurrealEngine/DevLoader.cpp
+	SurrealEngine/DevLoader.h
 	SurrealEngine/EditorApp.cpp
 	SurrealEngine/EditorApp.h
 	SurrealEngine/DebuggerApp.cpp
@@ -803,6 +805,8 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/UI/Editor/Editor2DViewport.h
 	SurrealEngine/UI/Editor/Editor3DViewport.cpp
 	SurrealEngine/UI/Editor/Editor3DViewport.h
+	SurrealEngine/UI/DevLoader/DevLoaderWindow.cpp
+	SurrealEngine/UI/DevLoader/DevLoaderWindow.h
 	SurrealEngine/UI/Launcher/LauncherBanner.cpp
 	SurrealEngine/UI/Launcher/LauncherBanner.h
 	SurrealEngine/UI/Launcher/LauncherButtonbar.cpp
@@ -1029,6 +1033,7 @@ source_group("SurrealEngine\\Render" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_
 source_group("SurrealEngine\\UI" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/.+")
 source_group("SurrealEngine\\UI\\ErrorWindow" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/ErrorWindow/.+")
 source_group("SurrealEngine\\UI\\Editor" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/Editor/.+")
+source_group("SurrealEngine\\UI\\DevLoader" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/DevLoader/.+")
 source_group("SurrealEngine\\UI\\Launcher" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/Launcher/.+")
 source_group("SurrealEngine\\Packages" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/Packages/.+")
 source_group("SurrealEngine\\Packages\\ConSys" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/Packages/ConSys/.+")

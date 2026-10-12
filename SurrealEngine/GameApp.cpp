@@ -5,14 +5,71 @@
 #include "Utils/CommandLine.h"
 #include "GameApp.h"
 #include "Harness.h"
+#include "DevLoader.h"
 #include "GameFolder.h"
 #include "Engine.h"
 #include "UI/WidgetResourceData.h"
 #include "UI/ErrorWindow/ErrorWindow.h"
 #include "UI/Launcher/LauncherWindow.h"
+#include "UI/DevLoader/DevLoaderWindow.h"
 #include "Utils/File.h"
 #include <stdexcept>
 #include <iostream>
+
+// Developer loader of the deus-ex-mac fork, see DevLoader.h. It selects the map and the things of the player for
+// this start. Returns false when the person closed the loader window, so that no game starts.
+static bool SetupDevLoader(GameLaunchInfo& info)
+{
+	if (!info.IsDeusEx())
+		return true;
+
+	std::string file = commandline->GetArg({}, "--loadout");
+	bool showWindow = commandline->HasArg({}, "--loader");
+
+	// A person who holds the Option key while the app starts gets the loader window. A test run has no person.
+	if (!showWindow && file.empty() && !Harness::Get().NoLauncher)
+		showWindow = DevLoader::IsLoaderKeyDown();
+
+	if (!showWindow && file.empty())
+		return true;
+
+	DevLoadout loadout;
+	if (!file.empty())
+	{
+		loadout = DevLoadout::LoadFile(file);
+	}
+	else
+	{
+		// The selections of the last time. The first time has no file.
+		try
+		{
+			loadout = DevLoadout::LoadFile(DevLoadout::GetSettingsFilename());
+		}
+		catch (...)
+		{
+		}
+	}
+
+	if (showWindow)
+	{
+		DevLoaderWindow::Options options;
+		options.SaveSelections = file.empty();
+		options.ScriptFile = commandline->GetArg({}, "--loader-script");
+		DevLoaderWindow::Result result = DevLoaderWindow::ExecModal(info, loadout, options);
+		if (result == DevLoaderWindow::Result::Quit)
+			return false;
+		if (result == DevLoaderWindow::Result::MainMenu)
+			return true;
+	}
+
+	DevLoader::Get().Active = true;
+	DevLoader::Get().Loadout = loadout;
+
+	// A map on the command line comes before the map of a loadout file. The map of the window comes before the two.
+	if (showWindow || !commandline->HasArg("-u", "--url"))
+		info.url = loadout.GetUrl();
+	return true;
+}
 
 int GameApp::main(Array<std::string> args)
 {
@@ -32,7 +89,7 @@ int GameApp::main(Array<std::string> args)
 
 		if (commandline->HasArg("-h", "--help"))
 		{
-			std::cout << "SurrealEngine [--url=<mapname>] [--engineversion=X] [Path to game folder]\n";
+			std::cout << "SurrealEngine [--url=<mapname>] [--engineversion=X] [--loader] [--loadout=<file>] [Path to game folder]\n";
 			return 0;
 		}
 
@@ -61,8 +118,11 @@ int GameApp::main(Array<std::string> args)
 		if (selectedGameIndex >= 0)
 		{
 			GameLaunchInfo info = GameFolderSelection::GetLaunchInfo(selectedGameIndex);
-			Engine engine(info);
-			engine.Run();
+			if (SetupDevLoader(info))
+			{
+				Engine engine(info);
+				engine.Run();
+			}
 		}
 	}
 	catch (const std::exception& e)

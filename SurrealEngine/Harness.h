@@ -82,6 +82,9 @@ public:
 	// The engine drops such events, so a person who works on the same computer cannot change a test.
 	bool DropRealInput(const char* what);
 
+	// The folder of --shots, empty if the run writes no pictures. The loader window writes its pictures there also.
+	const std::string& GetShotFolder() const { return shotDir; }
+
 	bool NoLauncher = false;
 	bool NoGrab = false;
 	double FixedDelta = 0.0; // --fixed-fps=<N>: every frame advances the game by 1/N seconds, at any render speed

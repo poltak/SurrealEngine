@@ -4,6 +4,7 @@
 #include "Utils/Random.h"
 #include "Utils/CommandLine.h"
 #include "Harness.h"
+#include "DevLoader.h"
 #include "Utils/File.h"
 #include "Utils/StrTools.h"
 #include "Utils/SHA1Sum.h"
@@ -94,8 +95,8 @@ Engine::Engine(GameLaunchInfo launchinfo) : LaunchInfo(launchinfo)
 	DefaultTexture = UObject::Cast<UTexture>(packages->GetPackage("Engine")->GetUObject("Texture", "DefaultTexture"));
 
 	floatprop = GC::Alloc<UFloatProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
-
 	stringprop = GC::Alloc<UStringProperty>(NameString(), nullptr, ObjectFlags::NoFlags);
+
 	if (LaunchInfo.IsDeusEx())
 	{
 		auto extpkg = packages->GetPackage("Extension");
@@ -171,6 +172,8 @@ void Engine::Run()
 	if (!LaunchInfo.noEntryMap)
 		LoadEntryMap();
 
+	DevLoader::Get().BeforeFirstMap(this);
+
 	if (LaunchInfo.url.empty())
 		LoadMap(GetDefaultURL(packages->GetIniValue("system", "URL", "LocalMap")));
 	else
@@ -223,6 +226,7 @@ void Engine::Run()
 		LevelInfo->Millisecond() = 0; // No timedesc equivalent for LevelInfo->Millisecond()
 
 		Harness::Get().Tick(this);
+		DevLoader::Get().Tick(this);
 
 		UpdateInput(realTimeElapsed);
 
