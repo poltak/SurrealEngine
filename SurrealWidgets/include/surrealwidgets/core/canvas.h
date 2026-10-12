@@ -80,6 +80,10 @@ public:
 
 	void setLanguage(const char* lang) { language = lang; }
 
+	// The picture of the last frame as 32 bit BGRA pixels, the top row first. False if this canvas keeps no pixels.
+	// A test uses this to write a picture of a window to a file.
+	virtual bool getPixels(int& pixelsWidth, int& pixelsHeight, std::vector<uint32_t>& pixelsOut) { return false; }
+
 protected:
 	virtual std::unique_ptr<CanvasTexture> createTexture(int width, int height, const void* pixels, ImageFormat format = ImageFormat::B8G8R8A8) = 0;
 	virtual void drawLineAntialiased(float x0, float y0, float x1, float y1, Colorf color) = 0;

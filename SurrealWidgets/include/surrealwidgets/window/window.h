@@ -374,6 +374,12 @@ public:
 	// real keyboard. type: 0 = key down, 1 = key up, 2 = change of the modifier keys. Only the macOS window has it.
 	virtual void InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters) { }
 
+	// For tests: send a mouse event of the native window system to the place (x, y) of this window, as the real mouse
+	// does. x and y are in points from the top left corner of the window content. The front window of the program at
+	// that place gets the event, which can be the list of a dropdown. type: 0 = left button down, 1 = left button up,
+	// 2 = mouse move. Only the macOS window has it.
+	virtual void InjectNativeMouseEvent(int type, double x, double y) { }
+
 	virtual void* GetNativeHandle() = 0;
 
 	virtual std::vector<std::string> GetVulkanInstanceExtensions() = 0;

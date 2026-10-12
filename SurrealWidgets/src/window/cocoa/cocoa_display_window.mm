@@ -1355,6 +1355,46 @@ void CocoaDisplayWindow::InjectNativeKeyEvent(int type, int keyCode, unsigned in
         [impl->window sendEvent:event];
 }
 
+// For tests: make a mouse event of macOS and give it to a window as the system does. The event then goes through the
+// same code as the real mouse: the hit test of the window, the view, the window host.
+// type: 0 = left button down, 1 = left button up, 2 = mouse move.
+void CocoaDisplayWindow::InjectNativeMouseEvent(int type, double x, double y)
+{
+    if (!impl->window)
+        return;
+
+    // The place on the screen. The view has its origin at the bottom left.
+    NSView* view = [impl->window contentView];
+    NSPoint viewPoint = NSMakePoint(x, [view bounds].size.height - y);
+    NSPoint screenPoint = [impl->window convertPointToScreen:[view convertPoint:viewPoint toView:nil]];
+
+    // A real click goes to the front window at that place. The list of a dropdown is a window of its own.
+    NSWindow* target = nil;
+    for (NSWindow* candidate in [NSApp orderedWindows])
+    {
+        if ([candidate isVisible] && NSPointInRect(screenPoint, [candidate frame]))
+        {
+            target = candidate;
+            break;
+        }
+    }
+    if (!target)
+        return;
+
+    NSEventType eventType = type == 0 ? NSEventTypeLeftMouseDown : type == 1 ? NSEventTypeLeftMouseUp : NSEventTypeMouseMoved;
+    NSEvent* event = [NSEvent mouseEventWithType:eventType
+                                        location:[target convertPointFromScreen:screenPoint]
+                                   modifierFlags:0
+                                       timestamp:[[NSProcessInfo processInfo] systemUptime]
+                                    windowNumber:[target windowNumber]
+                                         context:nil
+                                     eventNumber:0
+                                      clickCount:1
+                                        pressure:(type == 0 ? 1.0f : 0.0f)];
+    if (event)
+        [target sendEvent:event];
+}
+
 void* CocoaDisplayWindow::GetNativeHandle()
 {
     // Create and return a CocoaNativeHandle for this window

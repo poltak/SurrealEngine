@@ -544,6 +544,7 @@ class BitmapCanvas : public Canvas
 public:
 	void begin(const Colorf& color) override;
 	void end() override;
+	bool getPixels(int& pixelsWidth, int& pixelsHeight, std::vector<uint32_t>& pixelsOut) override;
 
 	void fillTile(float x, float y, float width, float height, Colorf color) override;
 	void drawTile(CanvasTexture* texture, float x, float y, float width, float height, float u, float v, float uvwidth, float uvheight, Colorf color) override;
@@ -1312,6 +1313,16 @@ void BitmapCanvas::end()
 {
 	if (window)
 		window->PresentBitmap(width, height, pixels.data());
+}
+
+bool BitmapCanvas::getPixels(int& pixelsWidth, int& pixelsHeight, std::vector<uint32_t>& pixelsOut)
+{
+	if (width <= 0 || height <= 0 || pixels.size() != (size_t)width * height)
+		return false;
+	pixelsWidth = width;
+	pixelsHeight = height;
+	pixelsOut = pixels;
+	return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////

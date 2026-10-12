@@ -63,6 +63,7 @@ public:
     void SetClipboardText(const std::string& text) override;
 
     void InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters) override;
+    void InjectNativeMouseEvent(int type, double x, double y) override;
 
     void* GetNativeHandle() override;
 
