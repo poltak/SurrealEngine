@@ -47,6 +47,8 @@ class UActor;
 //   goals                           log the goals of the player: name, primary or secondary, completed, text
 //   dump CLASS [RADIUS] [PROPS]     log state and location of each actor of that class, with the listed properties (a,b,c).
 //                                   CLASS can also be the name of one actor.
+//   visible                         log what the last frame showed: the count of frames (the view of the camera, and
+//                                   each sky and mirror in it), of level surfaces and of actors
 //   showtex PKG.NAME [PKG.NAME ...] draw these textures in a grid over the picture in each frame (no names: stop)
 //   windows                         log the tree of the visible Deus Ex interface windows with place, size,
 //                                   the start of the text of a text window, the row count of a list and the

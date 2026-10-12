@@ -745,6 +745,16 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			Dump::Window(root, root, 0);
 		}
 	}
+	else if (e.Command == "visible")
+	{
+		// visible: log what the last frame showed: the count of frames (the view of the camera, and each sky and
+		// mirror in it), of level surfaces and of actors. The "--stats" option shows the same numbers on the screen.
+		if (engine->render)
+		{
+			const auto& stats = engine->render->Stats;
+			LogMessage("Harness: visible frames=" + std::to_string(stats.Frames) + " surfaces=" + std::to_string(stats.Surfaces) + " actors=" + std::to_string(stats.Actors));
+		}
+	}
 	else if (e.Command == "texts")
 	{
 		// texts: log each line of text that the interface draws in the frame that comes now
