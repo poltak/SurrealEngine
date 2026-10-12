@@ -16,6 +16,9 @@ public:
 	void Draw();
 	void DrawCoronas();
 
+	// Deus Ex: find out if the player can see the actor in this frame, and give the actor its render time then
+	void AddRenderTimeTest(UActor* actor);
+
 	RenderDevice* Device = nullptr;
 
 	SceneNode Frame;
@@ -35,6 +38,25 @@ public:
 	Array<VisiblePortal> Portals;
 
 private:
+	// A part of the screen rectangle of an actor that is in one leaf of the BSP tree
+	struct ActorPiece
+	{
+		enum { MaxPoints = 12 };
+		UActor* Actor = nullptr;
+		int Next = -1;
+		int Count = 0;
+		vec3 Points[MaxPoints];
+	};
+
+	void FilterActorPiece(ActorPiece piece, BspNode* node, bool outside);
+	void AddActorPiece(const ActorPiece& piece, BspNode* node, int side);
+	void TestActorPieces(BspNode* node, int side);
+
+	enum { MaxActorPieces = 64 };
+	Array<ActorPiece> ActorPieces;
+	int ActorPieceBudget = 0;
+	mat4 WorldToProjection;
+
 	void SetupSceneFrame(const mat4& worldToView);
 	void ProcessNode(BspNode* node);
 	void ProcessNodeSurface(BspNode* node, bool front);

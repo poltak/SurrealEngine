@@ -18,7 +18,8 @@ enum EBspNodeFlags
 {
 	NF_NotCsg = 1,
 	NF_ShootThrough = 2,
-	NF_NotVisBlocking = 4
+	NF_NotVisBlocking = 4,
+	NF_IsNew = 32
 };
 
 struct LevelDecal
@@ -54,8 +55,16 @@ public:
 
 	BBox GetCollisionBox(UModel* model) const;
 
+	// As FBspNode::IsCsg: the plane of the node is a border between solid space and open space
+	bool IsCsg() const { return NumVertices > 0 && (NodeFlags & (NF_IsNew | NF_NotCsg)) == 0; }
+
 	UActor* ActorList = nullptr;
 	Array<LevelDecal> Decals;
+
+	// Deus Ex: the parts of actors in the leaf at the back (0) and at the front (1) of the node, for the traversal
+	// with the number PieceFrame. See VisibleFrame::AddRenderTimeTest.
+	int PieceFrame = -1;
+	int PieceHead[2] = { -1, -1 };
 };
 
 class BspSurface

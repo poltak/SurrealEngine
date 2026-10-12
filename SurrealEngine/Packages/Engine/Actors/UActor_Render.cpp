@@ -69,20 +69,27 @@ void UActor::UpdateBspInfo()
 		// A level that the engine left has no nodes (Engine::FreeLevelData)
 		ULevel* level = XLevel();
 		BspNode* node = (level && level->Model && !level->Model->Nodes.empty()) ? &level->Model->Nodes[0] : nullptr;
+
+		// As the BSP functions of the original: the space in front of a CSG plane is open space, and the space behind
+		// it is solid
+		bool outside = node && level->Model->RootOutside != 0;
 		while (node)
 		{
 			int side = NodeAABBOverlap(location, extents, node);
 			if (side == 0 || (side < 0 && node->Front < 0) || (side > 0 && node->Back < 0))
 			{
 				AddToBspNode(node);
+				BspInfo.Outside = outside;
 				break;
 			}
 			else if (side < 0)
 			{
+				outside = outside || node->IsCsg();
 				node = &level->Model->Nodes[node->Front];
 			}
 			else
 			{
+				outside = outside && !node->IsCsg();
 				node = &level->Model->Nodes[node->Back];
 			}
 		}

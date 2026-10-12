@@ -80,9 +80,10 @@ void VisibleActor::Process(VisibleFrame* frame, UActor* actor)
 	if (!frame->Clipper.IsAABBVisible(actor->BspInfo.BoundingBox))
 		return;
 
-	// Deus Ex: the AI uses the time of the last frame in which the player could see the actor
+	// Deus Ex: the AI uses the time of the last frame in which the player could see the actor. The box test above is
+	// too early for that, because the walls below this node are not in the clipper yet.
 	if (engine->LaunchInfo.IsDeusEx())
-		actor->LastRenderTime() = engine->LevelInfo->TimeSeconds();
+		frame->AddRenderTimeTest(actor);
 
 	EDrawType dt = (EDrawType)actor->DrawType();
 	if (dt == DT_Mesh && actor->Mesh())

@@ -25,7 +25,8 @@ void VisibleFrame::Process(const vec3& location, const mat4& worldToView, const 
 	Clipper.numDrawSpans = 0;
 	Clipper.numSurfs = 0;
 	Clipper.numTris = 0;
-	Clipper.Setup(Frame.Projection * Frame.WorldToView * Frame.ObjectToWorld, portalSpans, portalPlane);
+	WorldToProjection = Frame.Projection * Frame.WorldToView * Frame.ObjectToWorld;
+	Clipper.Setup(WorldToProjection, portalSpans, portalPlane);
 
 	ViewLocation = vec4(location, 1.0f);
 	ViewZone = FindZoneAt(location);
@@ -37,8 +38,224 @@ void VisibleFrame::Process(const vec3& location, const mat4& worldToView, const 
 	Translucents.clear();
 	Coronas.clear();
 	Portals.clear();
+	ActorPieces.clear();
 
 	ProcessNode(&engine->Level->Model->Nodes[0]);
+}
+
+// Deus Ex: the render time of an actor, as Render.dll (build 1112fm) gives it.
+//
+// The scripts and AActor::InStasis read LastRenderTime to find out if the player saw an actor a short time ago. A
+// person that the player did not see does not look for enemies, and a thing in stasis does not tick. The original
+// sets the time in URender::DrawActorSprite, so only for an actor that it draws, and it draws an actor only when a
+// part of it is free of the level geometry in front of it:
+//
+// - URender::SetupDynamics and FDynamicSprite::Setup take an actor with a mesh or a sprite whose place is not behind
+//   the camera plane. The sprite of the actor is the rectangle on the screen that has the box of the actor in it, at
+//   the depth of the actor.
+// - FDynamicChunk::Filter cuts this rectangle with the planes of the BSP nodes into one part for each leaf. A part
+//   in solid space goes away.
+// - When the traversal from front to back comes to a leaf, FDynamicFinalChunk::PreRender compares the parts of that
+//   leaf with the spans that the nearer surfaces left free. The actor is drawn when a part has a free span.
+//
+// This function makes the parts of one actor. TestActorPieces compares them when ProcessNode comes to their leaf.
+// The traversal is at the node of the actor at this time, and all leaves with a part are below that node.
+void VisibleFrame::AddRenderTimeTest(UActor* actor)
+{
+	BspNode* node = actor->BspInfo.Node;
+	if (!node)
+		return;
+
+	EDrawType dt = (EDrawType)actor->DrawType();
+	bool hasMesh = dt == DT_Mesh && actor->Mesh();
+	bool hasSprite = (dt == DT_Sprite || dt == DT_SpriteAnimOnce) && actor->Texture();
+	if (!hasMesh && !hasSprite)
+		return;
+
+	// The rows of the matrix give the screen axes: clip x, clip y, and the depth
+	const mat4& m = WorldToProjection;
+	vec3 rowX(m[0 + 0 * 4], m[0 + 1 * 4], m[0 + 2 * 4]);
+	vec3 rowY(m[1 + 0 * 4], m[1 + 1 * 4], m[1 + 2 * 4]);
+	vec3 rowW(m[3 + 0 * 4], m[3 + 1 * 4], m[3 + 2 * 4]);
+
+	vec4 center = m * vec4(actor->Location(), 1.0f);
+	float depth = center.w;
+	if (depth < 0.0f)
+		return;
+
+	// The rectangle on the screen, from -1 to 1 in each direction
+	const BBox& bbox = actor->BspInfo.BoundingBox;
+	vec2 rectMin(1.0f), rectMax(-1.0f);
+	bool first = true;
+	for (int i = 0; i < 8; i++)
+	{
+		vec4 corner = m * vec4((i & 1) ? bbox.max.x : bbox.min.x, (i & 2) ? bbox.max.y : bbox.min.y, (i & 4) ? bbox.max.z : bbox.min.z, 1.0f);
+		if (corner.w < 1.0f)
+		{
+			// The box comes through the camera plane, so the actor is at the place of the player
+			actor->LastRenderTime() = engine->LevelInfo->TimeSeconds();
+			return;
+		}
+		vec2 pos(corner.x / corner.w, corner.y / corner.w);
+		if (first)
+		{
+			rectMin = pos;
+			rectMax = pos;
+			first = false;
+		}
+		else
+		{
+			rectMin.x = std::min(rectMin.x, pos.x);
+			rectMin.y = std::min(rectMin.y, pos.y);
+			rectMax.x = std::max(rectMax.x, pos.x);
+			rectMax.y = std::max(rectMax.y, pos.y);
+		}
+	}
+	rectMin.x = std::max(rectMin.x, -1.0f);
+	rectMin.y = std::max(rectMin.y, -1.0f);
+	rectMax.x = std::min(rectMax.x, 1.0f);
+	rectMax.y = std::min(rectMax.y, 1.0f);
+	if (rectMin.x >= rectMax.x || rectMin.y >= rectMax.y)
+		return;
+
+	// The rectangle as a polygon in the level, at the depth of the actor
+	float z = std::max(depth, 1.0f);
+	vec3 base = actor->Location() + rowW * ((z - depth) / dot(rowW, rowW));
+	vec3 stepX = rowX * (1.0f / dot(rowX, rowX));
+	vec3 stepY = rowY * (1.0f / dot(rowY, rowY));
+	auto point = [&](float x, float y) { return base + stepX * (x * z - center.x) + stepY * (y * z - center.y); };
+
+	ActorPiece piece;
+	piece.Actor = actor;
+	piece.Count = 4;
+	piece.Points[0] = point(rectMin.x, rectMin.y);
+	piece.Points[1] = point(rectMax.x, rectMin.y);
+	piece.Points[2] = point(rectMax.x, rectMax.y);
+	piece.Points[3] = point(rectMin.x, rectMax.y);
+	ActorPieceBudget = MaxActorPieces;
+	FilterActorPiece(piece, node, actor->BspInfo.Outside);
+}
+
+// As FDynamicChunk::Filter: send a part down the BSP tree. A plane that goes through the part cuts it in two parts.
+// A part that comes to a side of a node with no child node is in a leaf. It stays if the leaf is open space.
+void VisibleFrame::FilterActorPiece(ActorPiece piece, BspNode* node, bool outside)
+{
+	BspNode* nodes = engine->Level->Model->Nodes.data();
+	while (ActorPieceBudget >= 0)
+	{
+		float dist[ActorPiece::MaxPoints];
+		int frontCount = 0, backCount = 0;
+		for (int i = 0; i < piece.Count; i++)
+		{
+			const vec3& p = piece.Points[i];
+			dist[i] = p.x * node->PlaneX + p.y * node->PlaneY + p.z * node->PlaneZ - node->PlaneW;
+			if (dist[i] > 0.01f)
+				frontCount++;
+			else if (dist[i] < -0.01f)
+				backCount++;
+		}
+
+		bool csg = node->IsCsg();
+
+		if (frontCount != 0 && backCount != 0)
+		{
+			// The part of the polygon at the back of the plane goes its own way
+			ActorPiece back;
+			back.Actor = piece.Actor;
+			ActorPiece front;
+			front.Actor = piece.Actor;
+			for (int i = 0; i < piece.Count; i++)
+			{
+				int j = (i + 1) % piece.Count;
+				if (dist[i] >= 0.0f && front.Count < ActorPiece::MaxPoints)
+					front.Points[front.Count++] = piece.Points[i];
+				if (dist[i] <= 0.0f && back.Count < ActorPiece::MaxPoints)
+					back.Points[back.Count++] = piece.Points[i];
+				if ((dist[i] > 0.0f && dist[j] < 0.0f) || (dist[i] < 0.0f && dist[j] > 0.0f))
+				{
+					vec3 cut = piece.Points[i] + (piece.Points[j] - piece.Points[i]) * (dist[i] / (dist[i] - dist[j]));
+					if (front.Count < ActorPiece::MaxPoints)
+						front.Points[front.Count++] = cut;
+					if (back.Count < ActorPiece::MaxPoints)
+						back.Points[back.Count++] = cut;
+				}
+			}
+
+			if (back.Count >= 3)
+			{
+				if (node->Back >= 0)
+					FilterActorPiece(back, nodes + node->Back, outside && !csg);
+				else if (outside && !csg)
+					AddActorPiece(back, node, 0);
+			}
+
+			if (front.Count < 3)
+				return;
+			piece = front;
+		}
+		else if (frontCount == 0)
+		{
+			// All of the part is at the back of the plane. A part that lies in the plane has no leaf.
+			if (backCount == 0)
+				return;
+			if (node->Back < 0)
+			{
+				if (outside && !csg)
+					AddActorPiece(piece, node, 0);
+				return;
+			}
+			outside = outside && !csg;
+			node = nodes + node->Back;
+			continue;
+		}
+
+		if (node->Front < 0)
+		{
+			if (outside || csg)
+				AddActorPiece(piece, node, 1);
+			return;
+		}
+		outside = outside || csg;
+		node = nodes + node->Front;
+	}
+}
+
+void VisibleFrame::AddActorPiece(const ActorPiece& piece, BspNode* node, int side)
+{
+	// A very large actor is in very many leaves. It counts as drawn with no more work, as before this test was here.
+	if (--ActorPieceBudget < 0)
+	{
+		piece.Actor->LastRenderTime() = engine->LevelInfo->TimeSeconds();
+		return;
+	}
+
+	if (node->PieceFrame != FrameCounter)
+	{
+		node->PieceFrame = FrameCounter;
+		node->PieceHead[0] = -1;
+		node->PieceHead[1] = -1;
+	}
+
+	int index = (int)ActorPieces.size();
+	ActorPieces.push_back(piece);
+	ActorPieces.back().Next = node->PieceHead[side];
+	node->PieceHead[side] = index;
+}
+
+// As FDynamicFinalChunk::PreRender and URender::DrawActorSprite: the traversal is at a leaf. An actor with a part in
+// this leaf that has a free span is drawn in this frame.
+void VisibleFrame::TestActorPieces(BspNode* node, int side)
+{
+	if (node->PieceFrame != FrameCounter)
+		return;
+
+	float now = engine->LevelInfo->TimeSeconds();
+	for (int index = node->PieceHead[side]; index >= 0; index = ActorPieces[index].Next)
+	{
+		const ActorPiece& piece = ActorPieces[index];
+		if (piece.Actor->LastRenderTime() != now && Clipper.CheckSurface(piece.Points, piece.Count, false))
+			piece.Actor->LastRenderTime() = now;
+	}
 }
 
 void VisibleFrame::SetupSceneFrame(const mat4& worldToView)
@@ -137,6 +354,11 @@ void VisibleFrame::ProcessNode(BspNode* node)
 	{
 		ProcessNode(&engine->Level->Model->Nodes[front]);
 	}
+	else
+	{
+		// The leaf on the near side of the plane
+		TestActorPieces(node, swapFrontAndBack ? 0 : 1);
+	}
 
 	// Draw surfaces on this plane
 	BspNode* polynode = node;
@@ -152,6 +374,11 @@ void VisibleFrame::ProcessNode(BspNode* node)
 	if (back >= 0)
 	{
 		ProcessNode(&engine->Level->Model->Nodes[back]);
+	}
+	else
+	{
+		// The leaf on the far side of the plane
+		TestActorPieces(node, swapFrontAndBack ? 1 : 0);
 	}
 }
 

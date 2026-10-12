@@ -570,6 +570,7 @@ public:
 		BspNode* Node = nullptr;
 		UActor* Prev = nullptr;
 		UActor* Next = nullptr;
+		bool Outside = false; // The space of Node is open space, if no CSG plane below Node changes that
 	} BspInfo;
 
 	// Tweening animation state
