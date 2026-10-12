@@ -112,61 +112,48 @@ public:
 
 @class ZWidgetWindowDelegate;
 
+// The virtual key codes of macOS name a place on the keyboard (the names are the ones of the US layout). A game
+// binds its commands to places, so the layout of the user does not change them. Text input does not use this
+// table: it comes from insertText.
+// The modifier keys are not in the table. They come from flagsChanged, and Shift and Control become InputKey::Shift
+// and InputKey::Ctrl, the keys that Windows gives a game for the left and for the right key.
 InputKey keycode_to_inputkey(unsigned short keycode)
 {
     static const std::map<unsigned short, InputKey> keymap =
     {
-        {0, InputKey::A},
-        {1, InputKey::S},
-        {2, InputKey::D},
-        {3, InputKey::F},
-        {4, InputKey::H},
-        {5, InputKey::G},
-        {6, InputKey::Z},
-        {7, InputKey::X},
-        {8, InputKey::C},
-        {9, InputKey::V},
-        {11, InputKey::B},
-        {12, InputKey::Q},
-        {13, InputKey::W},
-        {14, InputKey::E},
-        {15, InputKey::R},
-        {16, InputKey::Y},
-        {17, InputKey::T},
-        {36, InputKey::Enter},
-        {48, InputKey::Tab},
-        {49, InputKey::Space},
-        {51, InputKey::Backspace},
+        // Letters
+        {0, InputKey::A}, {1, InputKey::S}, {2, InputKey::D}, {3, InputKey::F}, {4, InputKey::H},
+        {5, InputKey::G}, {6, InputKey::Z}, {7, InputKey::X}, {8, InputKey::C}, {9, InputKey::V},
+        {11, InputKey::B}, {12, InputKey::Q}, {13, InputKey::W}, {14, InputKey::E}, {15, InputKey::R},
+        {16, InputKey::Y}, {17, InputKey::T}, {31, InputKey::O}, {32, InputKey::U}, {34, InputKey::I},
+        {35, InputKey::P}, {37, InputKey::L}, {38, InputKey::J}, {40, InputKey::K}, {45, InputKey::N},
+        {46, InputKey::M},
+        // Number row
+        {18, InputKey::_1}, {19, InputKey::_2}, {20, InputKey::_3}, {21, InputKey::_4}, {23, InputKey::_5},
+        {22, InputKey::_6}, {26, InputKey::_7}, {28, InputKey::_8}, {25, InputKey::_9}, {29, InputKey::_0},
+        // Punctuation. Key 10 is the key left of the 1 key on an ISO keyboard.
+        {27, InputKey::Minus}, {24, InputKey::Equals}, {33, InputKey::LeftBracket}, {30, InputKey::RightBracket},
+        {42, InputKey::Backslash}, {41, InputKey::Semicolon}, {39, InputKey::SingleQuote}, {43, InputKey::Comma},
+        {47, InputKey::Period}, {44, InputKey::Slash}, {50, InputKey::Tilde}, {10, InputKey::Tilde},
+        // Control keys
+        {36, InputKey::Enter}, {48, InputKey::Tab}, {49, InputKey::Space}, {51, InputKey::Backspace},
         {53, InputKey::Escape},
-        {55, InputKey::LCommand}, // Command key
-        {56, InputKey::LShift},
-        {57, InputKey::CapsLock},
-        {58, InputKey::Alt}, // Left Alt (Option)
-        {59, InputKey::LControl},
-        {60, InputKey::RShift},
-        {61, InputKey::Alt}, // Right Alt (Option)
-        {62, InputKey::RControl},
-        {115, InputKey::Home},
-        {116, InputKey::PageUp},
-        {117, InputKey::Delete},
-        {119, InputKey::End},
-        {121, InputKey::PageDown},
-        {122, InputKey::F1},
-        {120, InputKey::F2},
-        {99, InputKey::F3},
-        {118, InputKey::F4},
-        {96, InputKey::F5},
-        {97, InputKey::F6},
-        {98, InputKey::F7},
-        {100, InputKey::F8},
-        {101, InputKey::F9},
-        {109, InputKey::F10},
-        {103, InputKey::F11},
-        {111, InputKey::F12},
-        {123, InputKey::Left},
-        {124, InputKey::Right},
-        {125, InputKey::Down},
-        {126, InputKey::Up}
+        // Navigation. A PC keyboard gives key 114 (Help) for its Insert key.
+        {114, InputKey::Insert}, {115, InputKey::Home}, {116, InputKey::PageUp}, {117, InputKey::Delete},
+        {119, InputKey::End}, {121, InputKey::PageDown},
+        {123, InputKey::Left}, {124, InputKey::Right}, {125, InputKey::Down}, {126, InputKey::Up},
+        // Function keys
+        {122, InputKey::F1}, {120, InputKey::F2}, {99, InputKey::F3}, {118, InputKey::F4}, {96, InputKey::F5},
+        {97, InputKey::F6}, {98, InputKey::F7}, {100, InputKey::F8}, {101, InputKey::F9}, {109, InputKey::F10},
+        {103, InputKey::F11}, {111, InputKey::F12}, {105, InputKey::F13}, {107, InputKey::F14},
+        {113, InputKey::F15}, {106, InputKey::F16}, {64, InputKey::F17}, {79, InputKey::F18},
+        {80, InputKey::F19}, {90, InputKey::F20},
+        // Keypad
+        {82, InputKey::NumPad0}, {83, InputKey::NumPad1}, {84, InputKey::NumPad2}, {85, InputKey::NumPad3},
+        {86, InputKey::NumPad4}, {87, InputKey::NumPad5}, {88, InputKey::NumPad6}, {89, InputKey::NumPad7},
+        {91, InputKey::NumPad8}, {92, InputKey::NumPad9}, {65, InputKey::NumPadPeriod}, {67, InputKey::GreyStar},
+        {69, InputKey::GreyPlus}, {78, InputKey::GreyMinus}, {75, InputKey::GreySlash}, {76, InputKey::Enter},
+        {81, InputKey::Equals}, {71, InputKey::NumLock}
     };
 
     auto it = keymap.find(keycode);
@@ -547,8 +534,11 @@ void CocoaDisplayWindowImpl::stopDisplayLink()
     if (impl && impl->windowHost)
     {
         InputKey key = keycode_to_inputkey([theEvent keyCode]);
-        impl->keyState[key] = true;
-        impl->windowHost->OnWindowKeyDown(key);
+        if (key != InputKey::None)
+        {
+            impl->keyState[key] = true;
+            impl->windowHost->OnWindowKeyDown(key);
+        }
     }
 
     // Call interpretKeyEvents to trigger insertText: for text input
@@ -577,8 +567,11 @@ void CocoaDisplayWindowImpl::stopDisplayLink()
     if (impl && impl->windowHost)
     {
         InputKey key = keycode_to_inputkey([theEvent keyCode]);
-        impl->keyState[key] = false;
-        impl->windowHost->OnWindowKeyUp(key);
+        if (key != InputKey::None)
+        {
+            impl->keyState[key] = false;
+            impl->windowHost->OnWindowKeyUp(key);
+        }
     }
 
 }
@@ -587,53 +580,38 @@ void CocoaDisplayWindowImpl::stopDisplayLink()
 {
     if (impl && impl->windowHost)
     {
-        bool shiftPressed = ([theEvent modifierFlags] & NSEventModifierFlagShift) != 0;
-        bool ctrlPressed = ([theEvent modifierFlags] & NSEventModifierFlagControl) != 0;
-        bool altPressed = ([theEvent modifierFlags] & NSEventModifierFlagOption) != 0;
-        bool commandPressed = ([theEvent modifierFlags] & NSEventModifierFlagCommand) != 0;
+        NSEventModifierFlags flags = [theEvent modifierFlags];
+        bool shiftPressed = (flags & NSEventModifierFlagShift) != 0;
+        bool ctrlPressed = (flags & NSEventModifierFlagControl) != 0;
 
-        // Update Shift keys
-        if (impl->keyState[InputKey::LShift] != shiftPressed)
+        // A game gets one Shift key and one Ctrl key, as on Windows, where the key event of the left and of the
+        // right key has the same key code. The key bindings of a game use these two keys.
+        auto update = [&](InputKey key, bool pressed)
         {
-            impl->keyState[InputKey::LShift] = shiftPressed;
-            if (shiftPressed) impl->windowHost->OnWindowKeyDown(InputKey::LShift);
-            else impl->windowHost->OnWindowKeyUp(InputKey::LShift);
-        }
-        if (impl->keyState[InputKey::RShift] != shiftPressed) // Also update RShift
-        {
-            impl->keyState[InputKey::RShift] = shiftPressed;
-            if (shiftPressed) impl->windowHost->OnWindowKeyDown(InputKey::RShift);
-            else impl->windowHost->OnWindowKeyUp(InputKey::RShift);
-        }
+            if (impl->keyState[key] != pressed)
+            {
+                impl->keyState[key] = pressed;
+                if (pressed) impl->windowHost->OnWindowKeyDown(key);
+                else impl->windowHost->OnWindowKeyUp(key);
+            }
+        };
+        update(InputKey::Shift, shiftPressed);
+        update(InputKey::Ctrl, ctrlPressed);
+        update(InputKey::Alt, (flags & NSEventModifierFlagOption) != 0);
+        update(InputKey::LCommand, (flags & NSEventModifierFlagCommand) != 0);
 
-        // Update Control keys
-        if (impl->keyState[InputKey::LControl] != ctrlPressed)
-        {
-            impl->keyState[InputKey::LControl] = ctrlPressed;
-            if (ctrlPressed) impl->windowHost->OnWindowKeyDown(InputKey::LControl);
-            else impl->windowHost->OnWindowKeyUp(InputKey::LControl);
-        }
-        if (impl->keyState[InputKey::RControl] != ctrlPressed) // Also update RControl
-        {
-            impl->keyState[InputKey::RControl] = ctrlPressed;
-            if (ctrlPressed) impl->windowHost->OnWindowKeyDown(InputKey::RControl);
-            else impl->windowHost->OnWindowKeyUp(InputKey::RControl);
-        }
+        // The flags do not tell the left key from the right key. Keep the state of the two the same.
+        impl->keyState[InputKey::LShift] = shiftPressed;
+        impl->keyState[InputKey::RShift] = shiftPressed;
+        impl->keyState[InputKey::LControl] = ctrlPressed;
+        impl->keyState[InputKey::RControl] = ctrlPressed;
 
-        // Update Alt keys
-        if (impl->keyState[InputKey::Alt] != altPressed)
+        // The Caps Lock key (key code 57) gives one event for each press, when its light changes. A game takes
+        // that as one press and release of the key.
+        if ([theEvent keyCode] == 57)
         {
-            impl->keyState[InputKey::Alt] = altPressed;
-            if (altPressed) impl->windowHost->OnWindowKeyDown(InputKey::Alt);
-            else impl->windowHost->OnWindowKeyUp(InputKey::Alt);
-        }
-
-        // Update Command key (mapped to LCommand)
-        if (impl->keyState[InputKey::LCommand] != commandPressed)
-        {
-            impl->keyState[InputKey::LCommand] = commandPressed;
-            if (commandPressed) impl->windowHost->OnWindowKeyDown(InputKey::LCommand);
-            else impl->windowHost->OnWindowKeyUp(InputKey::LCommand);
+            impl->windowHost->OnWindowKeyDown(InputKey::CapsLock);
+            impl->windowHost->OnWindowKeyUp(InputKey::CapsLock);
         }
     }
 
