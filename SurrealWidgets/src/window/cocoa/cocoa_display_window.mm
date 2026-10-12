@@ -896,12 +896,21 @@ Size CocoaDisplayWindow::GetClientSize() const
     return {};
 }
 
+// A test runner sets SURREAL_NO_ACTIVATE so that a test window does not take the keyboard focus from the person at
+// the computer. The window then opens behind the windows of the active app.
+static bool AllowAppActivation()
+{
+    static bool allow = getenv("SURREAL_NO_ACTIVATE") == nullptr;
+    return allow;
+}
+
 void CocoaDisplayWindow::Show()
 {
     if (impl->window)
     {
         // CRITICAL: Activate the application so it can receive keyboard events
-        [NSApp activateIgnoringOtherApps:YES];
+        if (AllowAppActivation())
+            [NSApp activateIgnoringOtherApps:YES];
         [impl->window makeKeyAndOrderFront:nil];
 
         // Trigger initial layout
@@ -1040,7 +1049,8 @@ void CocoaDisplayWindow::Activate()
     if (impl->window)
     {
         [impl->window makeKeyAndOrderFront:nil];
-        [NSApp activateIgnoringOtherApps:YES];
+        if (AllowAppActivation())
+            [NSApp activateIgnoringOtherApps:YES];
     }
 }
 
