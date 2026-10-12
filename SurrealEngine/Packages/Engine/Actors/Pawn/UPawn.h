@@ -40,6 +40,7 @@ public:
 	void StartMoveDeusEx();
 	bool PollMoveDeusEx();
 	bool MoveTowardDeusEx(const vec3& dest);
+	void TickRotatingDeusEx(float elapsed);
 
 	// Returns true if any of the several points of other is visible (origin, top, bottom)
 	// ignoreDistance is a Deus Ex only parameter, it is always false on Unreal.

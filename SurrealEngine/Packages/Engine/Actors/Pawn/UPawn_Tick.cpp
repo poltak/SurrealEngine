@@ -200,10 +200,52 @@ void UPawn::TickPhysics(float elapsed)
 	}
 }
 
+// As APawn::physicsRotation in the Engine.dll of Deus Ex (build 1112fm), with the condition of its call in
+// APawn::performPhysics. The pawn turns to the yaw of its desired rotation with its rotation rate. A pawn that walks
+// or falls stands upright: its pitch goes to zero, also when the thing that it looks at is above or below it. In the
+// other physics modes the pitch goes to the desired pitch, and RotationRate.Pitch is the limit up and down. A pawn
+// has no roll.
+void UPawn::TickRotatingDeusEx(float elapsed)
+{
+	Rotator rot = Rotation();
+	const Rotator& desired = DesiredRotation();
+	if (rot.Pitch == desired.Pitch && rot.Yaw == desired.Yaw && rot.Roll == desired.Roll && RotationRate().Roll <= 0)
+		return;
+
+	bFixedRotationDir() = false;
+	bRotateToDesired() = true;
+
+	int yaw = rot.Yaw;
+	if (desired.Yaw != yaw)
+		yaw = Rotator::TurnToShortest(yaw, desired.Yaw, std::abs((int)(RotationRate().Yaw * elapsed)));
+
+	int pitch = rot.Pitch;
+	if (desired.Pitch != pitch)
+	{
+		bool upright = Physics() == PHYS_Walking || Physics() == PHYS_Falling;
+		pitch = Rotator::TurnToShortest(pitch, upright ? 0 : desired.Pitch, (int)(elapsed * 32768.0f));
+
+		int limit = RotationRate().Pitch;
+		if (pitch < 0x8000)
+			pitch = std::min(pitch, limit);
+		else
+			pitch = std::max(pitch, 0x10000 - limit);
+	}
+
+	if (pitch != rot.Pitch || yaw != rot.Yaw || rot.Roll != 0)
+		Rotation() = Rotator(pitch, yaw, 0);
+}
+
 void UPawn::TickRotating(float elapsed)
 {
 	if (Physics() == PHYS_Spider)
 		return;
+
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		TickRotatingDeusEx(elapsed);
+		return;
+	}
 
 	bRotateToDesired() = true;
 	bFixedRotationDir() = false;
