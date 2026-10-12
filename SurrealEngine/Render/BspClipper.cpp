@@ -201,7 +201,8 @@ bool BspClipper::DrawSpan(int16_t y, int16_t x0, int16_t x1, bool solid)
 
 	bool collect = CollectSpans;
 	bool visible = false;
-	for (size_t pos = 0; pos < line.size(); pos++)
+	size_t pos = 0;
+	while (pos < line.size())
 	{
 		ClipSpan& span = line[pos];
 		ClipSpan& nextspan = line[pos + 1];
@@ -231,8 +232,11 @@ bool BspClipper::DrawSpan(int16_t y, int16_t x0, int16_t x1, bool solid)
 				span.x1 = right;
 				if (span.x1 == nextspan.x0)
 				{
+					// The gap is full, and the two spans are one span now. The gap behind that span comes next.
+					// Without this the rest of the drawn span stayed free, and things behind a wall counted as visible.
 					span.x1 = nextspan.x1;
 					line.erase(line.begin() + pos + 1);
+					continue;
 				}
 			}
 			else if (right == nextspan.x0)
@@ -242,6 +246,7 @@ bool BspClipper::DrawSpan(int16_t y, int16_t x0, int16_t x1, bool solid)
 				{
 					span.x1 = nextspan.x1;
 					line.erase(line.begin() + pos + 1);
+					continue;
 				}
 			}
 			else
@@ -253,6 +258,7 @@ bool BspClipper::DrawSpan(int16_t y, int16_t x0, int16_t x1, bool solid)
 				line.insert(line.begin() + pos, span);
 			}
 		}
+		pos++;
 	}
 	return visible;
 }
