@@ -243,6 +243,13 @@ void NPawn::RemovePawn(UObject* Self)
 void NPawn::StopWaiting(UObject* Self)
 {
 	UPawn* SelfPawn = UObject::Cast<UPawn>(Self);
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// As APawn::execStopWaiting in the Engine.dll of Deus Ex: only a sleep ends. See UActor::PollLatentDeusEx.
+		if (Self->StateFrame && Self->StateFrame->LatentState == LatentRunState::Sleep)
+			SelfPawn->LatentFloat() = -1.0f;
+		return;
+	}
 	SelfPawn->SleepTimeLeft = 0.0f;
 }
 

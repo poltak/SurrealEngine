@@ -14,17 +14,15 @@
 
 void UPawn::Tick(float elapsed)
 {
-	// Deus Ex changes the move timer after the physics. See TickPhysics.
+	// Deus Ex changes the move timer after the physics (see TickPhysics), and the latent functions of its state code
+	// get their step in UActor::Tick (see PollLatentDeusEx).
 	bool deusEx = engine->LaunchInfo.IsDeusEx();
 	if (!deusEx)
 		MoveTimer() -= elapsed;
 
-	if (StateFrame)
+	if (StateFrame && !deusEx)
 	{
-		if (deusEx && PollMoveDeusEx())
-		{
-		}
-		else if (StateFrame->LatentState == LatentRunState::MoveTo)
+		if (StateFrame->LatentState == LatentRunState::MoveTo)
 		{
 			TickRotateTo(Focus());
 			if (TickMoveTo(Destination()))
@@ -578,6 +576,7 @@ void UPawn::TurnTo(const vec3& newFocus)
 	Focus() = newFocus;
 	if (StateFrame)
 		StateFrame->LatentState = LatentRunState::TurnTo;
+	StartTurnDeusEx();
 }
 
 void UPawn::TurnToward(UActor* newTarget)
@@ -590,12 +589,89 @@ void UPawn::TurnToward(UActor* newTarget)
 	Focus() = newTarget->Location();
 	if (StateFrame)
 		StateFrame->LatentState = LatentRunState::TurnToward;
+	StartTurnDeusEx();
+}
+
+// As APawn::execTurnTo and APawn::execTurnToward in the Engine.dll of Deus Ex (build 1112fm): the script function
+// gives the pawn its desired rotation at once, so the pawn starts to turn in the tick of the call.
+void UPawn::StartTurnDeusEx()
+{
+	if (!engine->LaunchInfo.IsDeusEx())
+		return;
+	GlideForwardDeusEx();
+	TickRotateTo(Focus());
+}
+
+// The turn functions of the original give a pawn that swims or flies, and that cannot strafe, the acceleration in
+// the direction that it looks at. Such a pawn goes forward while it turns.
+void UPawn::GlideForwardDeusEx()
+{
+	if (bCanGlide() && !bCanStrafe() && (Physics() == PHYS_Flying || Physics() == PHYS_Swimming))
+		Acceleration() = Coords::Rotation(Rotation()).XAxis * AccelRate();
 }
 
 void UPawn::WaitForLanding()
 {
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// As APawn::execWaitForLanding in the Engine.dll of Deus Ex (build 1112fm): the state code waits only when
+		// the pawn falls. LatentFloat is the time to the LongFall event.
+		LatentFloat() = 2.5f;
+		if (StateFrame && Physics() == PHYS_Falling)
+			StateFrame->LatentState = LatentRunState::WaitForLanding;
+		return;
+	}
+
 	if (StateFrame)
 		StateFrame->LatentState = LatentRunState::WaitForLanding;
+}
+
+// The step of the latent function that the state code of a pawn waits for, as the poll functions of APawn in the
+// Engine.dll of Deus Ex (build 1112fm): the four moves (see PollMoveDeusEx), execPollTurnTo, execPollTurnToward and
+// execPollWaitForLanding.
+void UPawn::PollLatentDeusEx(float elapsed)
+{
+	if (PollMoveDeusEx())
+		return;
+
+	switch (StateFrame->LatentState)
+	{
+	case LatentRunState::TurnTo:
+		GlideForwardDeusEx();
+		if (TickRotateTo(Focus()))
+			StateFrame->LatentState = LatentRunState::Continue;
+		break;
+
+	case LatentRunState::TurnToward:
+		if (UActor* target = FaceTarget())
+		{
+			GlideForwardDeusEx();
+			Focus() = target->Location();
+			if (!TickRotateTo(Focus()))
+				break;
+		}
+		StateFrame->LatentState = LatentRunState::Continue;
+		break;
+
+	case LatentRunState::WaitForLanding:
+		if (Physics() != PHYS_Falling)
+		{
+			StateFrame->LatentState = LatentRunState::Continue;
+		}
+		else
+		{
+			// A pawn that falls for more than 2.5 seconds gets the LongFall event in each tick. The script of the
+			// event sends the pawn to a different state.
+			LatentFloat() -= elapsed;
+			if (LatentFloat() < 0.0f)
+				CallEvent(this, "LongFall");
+		}
+		break;
+
+	default:
+		UActor::PollLatentDeusEx(elapsed);
+		break;
+	}
 }
 
 void UPawn::SetMoveDuration(const vec3& deltaMove)

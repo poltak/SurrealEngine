@@ -212,15 +212,28 @@ bool UActor::Destroy()
 
 void UActor::Tick(float elapsed)
 {
-	TickAnimation(elapsed);
-	if (engine->LaunchInfo.IsDeusEx())
+	bool deusEx = engine->LaunchInfo.IsDeusEx();
+	if (deusEx)
+	{
+		TickAnimationDeusEx(elapsed);
 		TickBlendAnimation(elapsed);
+	}
+	else
+	{
+		TickAnimation(elapsed);
+	}
 
 	TickScriptEvents(elapsed);
 
 	if (StateFrame)
 	{
-		if (StateFrame->LatentState == LatentRunState::Sleep)
+		if (deusEx)
+		{
+			// As AActor::ProcessState in the Engine.dll of Deus Ex: the latent function of the state code gets its
+			// step after the animation and the Tick event. When the function is complete, the code goes on below.
+			PollLatentDeusEx(elapsed);
+		}
+		else if (StateFrame->LatentState == LatentRunState::Sleep)
 		{
 			SleepTimeLeft = std::max(SleepTimeLeft - elapsed, 0.0f);
 			if (SleepTimeLeft == 0.0f)
@@ -272,6 +285,37 @@ void UActor::Tick(float elapsed)
 				TimerRate() = 0.0f;
 			CallEvent(this, EventName::Timer);
 		}
+	}
+}
+
+// The step of the latent function that the state code waits for: execPollSleep, execPollFinishAnim and
+// execPollFinishInterpolation of AActor in the Engine.dll of Deus Ex (build 1112fm). UPawn adds its own functions.
+void UActor::PollLatentDeusEx(float elapsed)
+{
+	switch (StateFrame->LatentState)
+	{
+	case LatentRunState::Sleep:
+		// A sleep ends at the tick that is nearest to its end time: the first tick with less than half of a tick
+		// to go. A sleep that ends only when its full time is over is half of a tick too long on average.
+		LatentFloat() -= elapsed;
+		if (LatentFloat() < 0.5f * elapsed)
+			StateFrame->LatentState = LatentRunState::Continue;
+		break;
+
+	case LatentRunState::FinishAnim:
+		// The animation step sets bAnimFinished. The original looks at that flag only. The second condition ends
+		// the wait for an animation that does not play, which a saved game of an older build can have.
+		if (bAnimFinished() || !IsAnimating())
+			StateFrame->LatentState = LatentRunState::Continue;
+		break;
+
+	case LatentRunState::FinishInterpolation:
+		if (!bInterpolating())
+			StateFrame->LatentState = LatentRunState::Continue;
+		break;
+
+	default:
+		break;
 	}
 }
 

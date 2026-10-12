@@ -14,6 +14,11 @@ bool UActor::HasAnim(const NameString& sequence)
 
 bool UActor::IsAnimating()
 {
+	// As AActor::IsAnimating in the Engine.dll of Deus Ex (build 1112fm): a tween to the first frame of a sequence is
+	// an animation also, and it has its own rate.
+	if (engine->LaunchInfo.IsDeusEx())
+		return !AnimSequence().IsNone() && (AnimFrame() < 0.0f ? TweenRate() : AnimRate()) != 0.0f;
+
 	return AnimRate() != 0.0f;
 }
 
@@ -29,6 +34,16 @@ void UActor::FinishAnim()
 	{
 		bAnimLoop() = false;
 		bAnimFinished() = false;
+	}
+
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		// As AActor::execFinishAnim in the Engine.dll of Deus Ex (build 1112fm): the state code waits only for an
+		// animation that plays and that is before its last frame. If not, the code goes on in the same tick.
+		// A loop that is between its last frame and its end is such a case.
+		if (StateFrame && IsAnimating() && AnimFrame() < AnimLast())
+			StateFrame->LatentState = LatentRunState::FinishAnim;
+		return;
 	}
 
 	if (StateFrame)
@@ -244,7 +259,17 @@ void UActor::LoopAnim(const NameString& sequence, float rate, float tweenTime, f
 		{
 			if (AnimSequence() == sequence && IsAnimating() && bAnimLoop())
 			{
-				if (seq->NumFrames > 1)
+				if (engine->LaunchInfo.IsDeusEx())
+				{
+					// As AActor::execLoopAnim in the Engine.dll of Deus Ex (build 1112fm): a loop of this sequence that
+					// plays gets the new rates only. It keeps its frame and its tween rate, and it is not finished.
+					// So a FinishAnim does not end while an AnimEnd event asks for the same loop again.
+					AnimRate() = rate * seq->Rate / seq->NumFrames;
+					AnimMinRate() = minRate != 0.0f ? seq->Rate / seq->NumFrames * minRate : 0.0f;
+					OldAnimRate() = AnimRate();
+					bAnimFinished() = false;
+				}
+				else if (seq->NumFrames > 1)
 				{
 					AnimRate() = rate * seq->Rate / seq->NumFrames;
 					AnimMinRate() = minRate * seq->Rate / seq->NumFrames;
@@ -451,6 +476,109 @@ void UActor::TickAnimation(float elapsed)
 
 				bAnimFinished() = true;
 				//engine->LogMessage("CallEvent(AnimEnd) for " + Class->FriendlyName.ToString() + "");
+				CallEvent(this, EventName::AnimEnd);
+			}
+		}
+	}
+}
+
+// The animation step of AActor::Tick in the Engine.dll of Deus Ex (build 1112fm).
+// One tick has four steps at most. A step ends at a notify function, at the end of a tween, at the last frame of a
+// sequence that does not loop, or at the end of a loop. The time after that point goes to the next step, so the
+// animation that an event starts gets the remaining time of the tick.
+// A loop gives the AnimEnd event in the step that goes past its last frame, and it does not stop at that frame.
+// bAnimFinished ends the FinishAnim of the state code (see PollLatentDeusEx).
+void UActor::TickAnimationDeusEx(float elapsed)
+{
+	float seconds = elapsed;
+	int iterations = 0;
+	while (IsAnimating() && seconds > 0.0f && ++iterations <= 4)
+	{
+		float oldAnimFrame = AnimFrame();
+
+		if (oldAnimFrame < 0.0f)
+		{
+			// A tween to the first frame of the sequence
+			float frame = seconds * TweenRate() + oldAnimFrame;
+			AnimFrame() = frame;
+			if (frame < 0.0f)
+				break;
+
+			AnimFrame() = 0.0f;
+			seconds = frame * seconds / (frame - oldAnimFrame);
+			if (AnimRate() == 0.0f)
+			{
+				// A tween with no animation after it is complete
+				bAnimFinished() = true;
+				CallEvent(this, EventName::AnimEnd);
+			}
+			continue;
+		}
+
+		// A rate below zero is a factor for the speed of the actor
+		if (AnimRate() < 0.0f)
+			AnimFrame() += std::max(AnimMinRate(), -(length(Velocity()) * AnimRate())) * seconds;
+		else
+			AnimFrame() += seconds * AnimRate();
+
+		// The notify function that comes first in this step
+		if (bAnimNotify() && Mesh())
+		{
+			MeshAnimSeq* seq = Mesh()->GetSequence(AnimSequence());
+			if (seq)
+			{
+				const MeshAnimNotify* best = nullptr;
+				float bestFrames = 100000.0f;
+				for (const MeshAnimNotify& n : seq->Notifys)
+				{
+					if (n.Time > oldAnimFrame && AnimFrame() >= n.Time && (!best || n.Time - oldAnimFrame < bestFrames))
+					{
+						best = &n;
+						bestFrames = n.Time - oldAnimFrame;
+					}
+				}
+				if (best)
+				{
+					NameString function = best->Function;
+					seconds = (AnimFrame() - best->Time) * seconds / (AnimFrame() - oldAnimFrame);
+					AnimFrame() = best->Time;
+					if (FindEventFunction(this, function))
+						CallEvent(this, function);
+					continue;
+				}
+			}
+		}
+
+		if (AnimFrame() < AnimLast())
+			break;
+
+		if (!bAnimLoop())
+		{
+			// The sequence stops at its last frame
+			seconds = (AnimFrame() - AnimLast()) * seconds / (AnimFrame() - oldAnimFrame);
+			AnimFrame() = AnimLast();
+			AnimRate() = 0.0f;
+			bAnimFinished() = true;
+			CallEvent(this, EventName::AnimEnd);
+		}
+		else
+		{
+			if (AnimFrame() >= 1.0f)
+			{
+				// The loop starts again
+				seconds = (AnimFrame() - 1.0f) * seconds / (AnimFrame() - oldAnimFrame);
+				AnimFrame() = 0.0f;
+			}
+			else
+			{
+				seconds = 0.0f;
+			}
+
+			if (oldAnimFrame < AnimLast())
+			{
+				// The loop went past its last frame in this step
+				if (StateFrame && StateFrame->LatentState == LatentRunState::FinishAnim)
+					bAnimFinished() = true;
 				CallEvent(this, EventName::AnimEnd);
 			}
 		}

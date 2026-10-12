@@ -672,7 +672,12 @@ void NActor::SetTimer(UObject* Self, float NewTimerRate, bool bLoop)
 void NActor::Sleep(UObject* Self, float Seconds)
 {
 	UActor* SelfActor = UObject::Cast<UActor>(Self);
-	SelfActor->SleepTimeLeft = Seconds;
+	// Deus Ex keeps the time in LatentFloat, as AActor::execSleep in its Engine.dll does. That property is a part
+	// of a saved game. See UActor::PollLatentDeusEx.
+	if (engine->LaunchInfo.IsDeusEx())
+		SelfActor->LatentFloat() = Seconds;
+	else
+		SelfActor->SleepTimeLeft = Seconds;
 	if (Self->StateFrame)
 		Self->StateFrame->LatentState = LatentRunState::Sleep;
 }

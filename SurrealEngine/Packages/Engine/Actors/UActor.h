@@ -391,6 +391,10 @@ public:
 	void TickAnimation(float elapsed);
 	void TickBlendAnimation(float elapsed);
 
+	// The animation step and the step of a latent function as the Engine.dll of Deus Ex has them
+	void TickAnimationDeusEx(float elapsed);
+	virtual void PollLatentDeusEx(float elapsed);
+
 	virtual void TickPhysics(float elapsed);
 	void TickWalking(float elapsed);
 	bool TickLadder(UPawn* pawn, float elapsed);

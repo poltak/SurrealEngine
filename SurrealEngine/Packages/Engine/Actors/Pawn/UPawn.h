@@ -36,9 +36,12 @@ public:
 	bool TickRotateTo(const vec3& target);
 	bool TickMoveTo(const vec3& target);
 
-	// The latent moves of a pawn as the Engine.dll of Deus Ex has them
+	// The latent moves and turns of a pawn as the Engine.dll of Deus Ex has them
+	void PollLatentDeusEx(float elapsed) override;
 	void StartMoveDeusEx();
 	bool PollMoveDeusEx();
+	void StartTurnDeusEx();
+	void GlideForwardDeusEx();
 	bool MoveTowardDeusEx(const vec3& dest);
 	void TickRotatingDeusEx(float elapsed);
 
