@@ -339,6 +339,23 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	{
 		engine->OnWindowKeyChar(e.Args);
 	}
+	else if (e.Command == "oskey")
+	{
+		// oskey down|up|tap CODE [CHARS] | oskey flags MASK [CODE]: a key event with a key code of the window system,
+		// sent through the window. This tests the key table of the window code, which the "key" command does not use.
+		std::istringstream parts(e.Args);
+		std::string kind, codeText, chars;
+		parts >> kind >> codeText >> chars;
+		int code = codeText.empty() ? 0 : (int)std::strtol(codeText.c_str(), nullptr, 0);
+		if (kind == "down" || kind == "tap")
+			engine->window->InjectNativeKeyEvent(0, code, 0, chars);
+		else if (kind == "up")
+			engine->window->InjectNativeKeyEvent(1, code, 0, chars);
+		else if (kind == "flags")
+			engine->window->InjectNativeKeyEvent(2, chars.empty() ? 0 : (int)std::strtol(chars.c_str(), nullptr, 0), (unsigned int)code, "");
+		if (kind == "tap")
+			events.insert(events.begin() + nextEvent, Event{ e.Time + 0.08, "oskey", "up " + codeText + " " + chars });
+	}
 	else if (e.Command == "move")
 	{
 		engine->OnWindowMouseMove(ParsePoint(engine, e.Args));

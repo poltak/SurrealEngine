@@ -1320,6 +1320,31 @@ void CocoaDisplayWindow::SetClipboardText(const std::string& text)
     [pasteboard setString:[NSString stringWithUTF8String:text.c_str()] forType:NSPasteboardTypeString];
 }
 
+// For tests: make a key event of macOS and give it to the window as the system does. The event then goes through
+// the same code as a key of the real keyboard: the first responder of the window, the key table, the window host.
+// It does not need the keyboard focus. type: 0 = key down, 1 = key up, 2 = change of the modifier flags.
+void CocoaDisplayWindow::InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters)
+{
+    if (!impl->window)
+        return;
+    NSEventType eventType = type == 0 ? NSEventTypeKeyDown : type == 1 ? NSEventTypeKeyUp : NSEventTypeFlagsChanged;
+    NSString* chars = [NSString stringWithUTF8String:characters.c_str()];
+    if (!chars)
+        chars = @"";
+    NSEvent* event = [NSEvent keyEventWithType:eventType
+                                      location:NSZeroPoint
+                                 modifierFlags:(NSEventModifierFlags)modifierFlags
+                                     timestamp:[[NSProcessInfo processInfo] systemUptime]
+                                  windowNumber:[impl->window windowNumber]
+                                       context:nil
+                                    characters:chars
+                   charactersIgnoringModifiers:chars
+                                     isARepeat:NO
+                                       keyCode:(unsigned short)keyCode];
+    if (event)
+        [impl->window sendEvent:event];
+}
+
 void* CocoaDisplayWindow::GetNativeHandle()
 {
     // Create and return a CocoaNativeHandle for this window

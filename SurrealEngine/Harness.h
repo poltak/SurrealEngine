@@ -30,6 +30,11 @@ class UActor;
 // Script commands (X and Y are fractions of the window, 0..1):
 //   keydown K | keyup K | key K     K is a key name (a-z, 0-9, enter, esc, space, f1..f12, ...) or a key code
 //   char TEXT                       typed characters
+//   oskey down|up|tap CODE [CHARS]  a key event with a key code of the window system (macOS: virtual key code), sent
+//                                   through the window as a key of the real keyboard. CHARS is the text of the key.
+//   oskey flags MASK [CODE]         macOS: a change of the modifier keys. MASK has the modifier flags that are down
+//                                   (0x20000 Shift, 0x40000 Control, 0x80000 Option, 0x100000 Command), CODE is
+//                                   the key code of the key that changed (57 = Caps Lock)
 //   move X Y | click X Y | rclick X Y | mousedown X Y | mouseup X Y
 //   wheelup X Y | wheeldown X Y     one step of the mouse wheel with the mouse at that place
 //   raw DX DY                       relative mouse movement

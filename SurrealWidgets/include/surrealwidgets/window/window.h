@@ -370,6 +370,10 @@ public:
 	virtual std::string GetClipboardText() = 0;
 	virtual void SetClipboardText(const std::string& text) = 0;
 
+	// For tests: send a key event with a key code of the native window system through the same code as a key of the
+	// real keyboard. type: 0 = key down, 1 = key up, 2 = change of the modifier keys. Only the macOS window has it.
+	virtual void InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters) { }
+
 	virtual void* GetNativeHandle() = 0;
 
 	virtual std::vector<std::string> GetVulkanInstanceExtensions() = 0;

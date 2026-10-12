@@ -62,6 +62,8 @@ public:
     std::string GetClipboardText() override;
     void SetClipboardText(const std::string& text) override;
 
+    void InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters) override;
+
     void* GetNativeHandle() override;
 
     std::vector<std::string> GetVulkanInstanceExtensions() override;

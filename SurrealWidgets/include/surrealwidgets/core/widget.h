@@ -92,6 +92,8 @@ public:
 	void SetWindowBorderColor(const Colorf& color);
 	void SetWindowCaptionColor(const Colorf& color);
 	void SetWindowCaptionTextColor(const Colorf& color);
+	// For tests: send a key event of the native window system through the window, as a key of the real keyboard
+	void InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters) const { Window()->DispWindow->InjectNativeKeyEvent(type, keyCode, modifierFlags, characters); }
 	void SetWindowResizable(const bool enable) const { Window()->DispWindow->SetWindowResizable(enable); }
 	void SetWindowMinSize(const int width, const int height) const { Window()->DispWindow->SetWindowMinSize(width, height); }
 	void SetWindowMaxSize(const int width, const int height) const { Window()->DispWindow->SetWindowMaxSize(width, height); }
