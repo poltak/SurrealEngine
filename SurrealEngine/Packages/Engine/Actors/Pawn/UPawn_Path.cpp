@@ -151,11 +151,17 @@ std::pair<Array<UNavigationPoint*>, int32_t> UPawn::FindPathToEndPoint(UNavigati
 	{
 		const Step& step = steps[currentStep];
 
-		// Skip path parts we already are touching
-		float minDist = (float)radius;
+		// Skip path parts we already are touching.
+		// The rule is the one that APawn::findPathToward of the original engine has for the navigation point that a
+		// pawn stands on (Engine.dll of Deus Ex, build 1112fm): the distance on the ground is below the collision
+		// radius of the pawn, and the height difference is below the sum of the two collision heights. A navigation
+		// point is lower than the middle of a pawn that stands on it, so a distance in three dimensions is never
+		// below the radius, and the pawn then got the point that it stands on as its next point again and again.
 		vec3 d = step.navpoint->Location() - Location();
-		float heightDiff = step.navpoint->Location().z - Location().z;
-		if (dot(d, d) < minDist * minDist && std::abs(heightDiff) < (float)height)
+		float touchRadiusSquared = CollisionRadius() * CollisionRadius();
+		if (bIsPlayer() && UObject::TryCast<UInventorySpot>(step.navpoint))
+			touchRadiusSquared *= 2.0f;
+		if (d.x * d.x + d.y * d.y < touchRadiusSquared && std::abs(d.z) < step.navpoint->CollisionHeight() + CollisionHeight())
 		{
 			path.clear();
 		}
