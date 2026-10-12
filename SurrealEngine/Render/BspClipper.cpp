@@ -87,6 +87,11 @@ bool BspClipper::CheckSurface(const vec3* vertices, uint32_t count, bool solid)
 
 bool BspClipper::IsAABBVisible(const BBox& bbox)
 {
+	// A box that is fully behind the plane of a portal or a mirror has no part in the frame of that portal
+	vec4 front(PortalPlane.x > 0.0f ? bbox.max.x : bbox.min.x, PortalPlane.y > 0.0f ? bbox.max.y : bbox.min.y, PortalPlane.z > 0.0f ? bbox.max.z : bbox.min.z, 1.0f);
+	if (dot(PortalPlane, front) < 0.0f)
+		return false;
+
 	// First quickly check if we can rule it out using the frustum planes
 	int bits = FrustumClip.testIntersecting(bbox);
 	if (bits == -1) // outside

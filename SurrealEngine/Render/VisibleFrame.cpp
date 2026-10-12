@@ -729,8 +729,18 @@ void VisibleFrame::DrawPortals()
 			mat4 mirrorRotation = mat4::mirror(n);
 			mat4 mirrorToView = Frame.WorldToView * mat4::translate(v) * mirrorRotation * mat4::translate(-v);
 
+			// URender::OccludeBsp of Render.dll makes a child frame for a mirror. That frame shows the level from
+			// the mirror image of the view location (FVector::MirrorByPlane), and the plane of the mirror is its
+			// near clip plane. This frame does the same. The order of the nodes and the distances come from the
+			// mirror image of the view location, and the things behind the mirror are not in the frame.
+			float side = dot(ViewLocation.xyz() - v, n);
+			vec3 mirrorLocation = ViewLocation.xyz() - n * (2.0f * side);
+			vec4 mirrorPlane(n, -dot(v, n));
+			if (side < 0.0f)
+				mirrorPlane = -mirrorPlane;
+
 			VisibleFrame mirrorframe;
-			mirrorframe.Process(ViewLocation.xyz(), mirrorToView, ViewRotation * Coords::FromMatrix(mirrorRotation).Inverse(), !MirrorFlag, PortalDepth + 1, portal.Spans);
+			mirrorframe.Process(mirrorLocation, mirrorToView, ViewRotation * Coords::FromMatrix(mirrorRotation).Inverse(), !MirrorFlag, PortalDepth + 1, portal.Spans, mirrorPlane);
 			Device->SetSceneNode(&mirrorframe.Frame);
 			mirrorframe.Draw();
 			Device->ClearZ();
