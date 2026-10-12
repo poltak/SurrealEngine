@@ -5,6 +5,7 @@
 #include "PackageStream.h"
 #include "PackageManager.h"
 #include "Utils/File.h"
+#include "Utils/Logger.h"
 #include "Packages/Core/UObject.h"
 #include "Packages/Core/UClass.h"
 
@@ -169,13 +170,31 @@ UObject* Package::GetUObject(int objref)
 
 		// Find the path for the outer object (we can't just grab the object pointer due to UnrealI/UnrealShare)
 		std::string group;
-		ImportTableEntry* outerEntry = GetImportEntry(entry->ObjOuter);
-		while (outerEntry->ObjOuter != 0)
+		int outerRef = entry->ObjOuter;
+		ImportTableEntry* outerEntry = nullptr;
+		while (true)
 		{
+			// An object of a different package cannot have an object of this package as its outer object. A Deus Ex
+			// save game from before the fix of the new operator has such entries for the goals, the notes and the
+			// keys of the player, without their data. The reference is then to no object.
+			if (outerRef > 0)
+			{
+				if (!BadImportLogged)
+				{
+					BadImportLogged = true;
+					LogMessage("Package " + Name.ToString() + ": an import has an object of this package as its outer object (" +
+						className.ToString() + " in " + GetName(GetExportEntry(outerRef)->ObjName).ToString() + "). References to such objects are empty.");
+				}
+				return nullptr;
+			}
+
+			outerEntry = GetImportEntry(outerRef);
+			if (outerEntry->ObjOuter == 0)
+				break;
 			if (!group.empty())
 				group += '.';
 			group += GetName(outerEntry->ObjName).ToString();
-			outerEntry = GetImportEntry(outerEntry->ObjOuter);
+			outerRef = outerEntry->ObjOuter;
 		}
 
 		NameString packageName = GetName(outerEntry->ObjName);

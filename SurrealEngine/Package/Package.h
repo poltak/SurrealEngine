@@ -74,6 +74,8 @@ private:
 
 	Array<UObject*> ExportObjects;
 
+	bool BadImportLogged = false;
+
 	Package(const Package&) = delete;
 	Package& operator=(const Package&) = delete;
 
