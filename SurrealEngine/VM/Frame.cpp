@@ -916,8 +916,10 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 				ExpressionValue flags = std::move(PopValue());
 				UClass* cls = UObject::Cast<UClass>(PopValue().ToObject());
 
-				// To do: package needs to be grabbed from outer, or the "transient package" if it is None, a virtual package for runtime objects
-				Package* package = engine->packages->GetPackage("Engine");
+				// The new object is part of the package of its outer object. A save of a level then includes the objects
+				// that the level actors made. An object without an outer object is part of the transient package.
+				UObject* outerObj = outer.GetType() != ExpressionValueType::Nothing ? outer.ToObject() : nullptr;
+				Package* package = (outerObj && outerObj->package) ? outerObj->package : engine->packages->GetTransientPackage();
 
 				UObject* newObj = package->NewObject(
 					name.GetType() == ExpressionValueType::Nothing ? NameString() : name.ToName(),
@@ -925,8 +927,8 @@ ExpressionEvalResult Frame::RunExpr(Expression* statementExpr, UObject* self, UO
 					flags.GetType() == ExpressionValueType::Nothing ? ObjectFlags::NoFlags : (ObjectFlags)flags.ToInt(),
 					true);
 
-				if (outer.GetType() != ExpressionValueType::Nothing)
-					newObj->Outer() = outer.ToObject();
+				if (outerObj)
+					newObj->Outer() = outerObj;
 
 				PushValue(ExpressionValue::ObjectValue(newObj));
 				PopExpr();
