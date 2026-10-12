@@ -128,6 +128,27 @@ void URootWindow::WindowReady()
 	UModalWindow::WindowReady();
 }
 
+// As XRootWindow::Tick: while no window has the keyboard focus, the focus goes to the window that had it last in the
+// modal window on top, or to the first window of that modal window that can have it. So the focus comes back after
+// the script hid the root window and showed it again, as the Save Game screen does for its picture.
+void URootWindow::Tick(float timeElapsed)
+{
+	if (!FocusWindow())
+	{
+		UModalWindow* modal = UObject::Cast<UModalWindow>(GetCurrentModal());
+		if (modal->focusMode() < MFOCUS_EnterLeave)
+		{
+			UWindow* preferred = modal->preferredFocus();
+			if (preferred && preferred->IsTraversable(true))
+				SetRootFocusWindow(preferred);
+			if (!FocusWindow())
+				MoveTabGroup(EMove::Down);
+		}
+	}
+
+	UModalWindow::Tick(timeElapsed);
+}
+
 bool URootWindow::IsCursorVisible()
 {
 	// As XRootWindow::PaintWindows: the cursor shows while the window system has the mouse, unless the script hid it

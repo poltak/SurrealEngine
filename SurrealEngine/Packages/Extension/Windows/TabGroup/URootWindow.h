@@ -26,6 +26,7 @@ public:
 
 	void InitWindow() override;
 	void WindowReady() override;
+	void Tick(float timeElapsed) override;
 	void DescendantRemoved(UWindow* descendant) override;
 	void PostDrawWindow(UGC* gc) override;
 
