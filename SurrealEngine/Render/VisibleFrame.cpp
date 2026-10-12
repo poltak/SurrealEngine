@@ -390,6 +390,30 @@ void VisibleFrame::ProcessNodeSurface(BspNode* node, bool front)
 	UModel* model = engine->Level->Model;
 	const BspSurface& surface = model->Surfaces[node->Surf];
 
+	// The engine does not draw a surface that the frame shows from behind, and such a surface hides nothing.
+	// Render.dll (build 1112fm) has this rule in these steps:
+	//
+	// - URender::OccludeBsp finds the side of the view location for each node of a coplanar chain, with the plane
+	//   of that node. A node of a chain can face the opposite direction.
+	// - It drops a node when the view location is more than 1 unit behind the plane. It keeps a surface with the
+	//   PF_TwoSided flag or the PF_Portal flag. The flags of the texture are not part of this test.
+	// - For a node that it keeps, it reverses the order of the points when the frame shows the back of the
+	//   surface, and one more time when the frame is a mirror image. The points of a surface that faces the
+	//   frame then go clockwise on the screen.
+	// - Its rasterizer puts an edge that goes down the screen on the right side of a line, and an edge that goes
+	//   up on the left side. FSpanBuffer::CopyFromRaster makes a span only where the left side is less than the
+	//   right side. So points that go counterclockwise give no span. OccludeBsp does not draw a node with no
+	//   span, and such a node hides nothing.
+	//
+	// A one-sided surface never has a span when the view location is behind its plane, so the 1 unit is only
+	// the tolerance of a first test. The test here is at the plane.
+	if ((surface.PolyFlags & (PF_TwoSided | PF_Portal)) == 0)
+	{
+		float side = node->PlaneX * ViewLocation.x + node->PlaneY * ViewLocation.y + node->PlaneZ * ViewLocation.z - node->PlaneW;
+		if (side <= 0.0f)
+			return;
+	}
+
 	int numverts = node->NumVertices;
 	vec3* points = engine->render->GetTempVertexBuffer(numverts);
 	BspVert* v = &model->Vertices[node->VertPool];
@@ -483,7 +507,10 @@ void VisibleFrame::ProcessNodeSurface(BspNode* node, bool front)
 		}
 		else if (PolyFlags & PF_Mirrored)
 		{
-			if (PortalDepth > 0) // To do: cull backfacing surfaces so we don't need this hack
+			// To do: draw a mirror that a portal frame or a different mirror shows. The original draws it, to a
+			// depth of 3 frames. The mirror of a mirror frame itself does not come here, because that frame
+			// shows it from behind.
+			if (PortalDepth > 0)
 				return;
 
 			Array<PortalSpan> spans = Clipper.CheckPortal(points, numverts);
@@ -731,8 +758,9 @@ void VisibleFrame::DrawPortals()
 
 			// URender::OccludeBsp of Render.dll makes a child frame for a mirror. That frame shows the level from
 			// the mirror image of the view location (FVector::MirrorByPlane), and the plane of the mirror is its
-			// near clip plane. This frame does the same. The order of the nodes and the distances come from the
-			// mirror image of the view location, and the things behind the mirror are not in the frame.
+			// near clip plane. This frame does the same. The order of the nodes, the side of each surface and the
+			// distances come from the mirror image of the view location. So this frame shows the mirror itself
+			// from behind, and the things behind the mirror are not in it.
 			float side = dot(ViewLocation.xyz() - v, n);
 			vec3 mirrorLocation = ViewLocation.xyz() - n * (2.0f * side);
 			vec4 mirrorPlane(n, -dot(v, n));
