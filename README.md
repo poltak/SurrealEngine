@@ -1,3 +1,11 @@
+> [!NOTE]
+> **This is a changed version of Surreal Engine. It is not the original software.**
+> The original is at https://github.com/dpjudas/SurrealEngine.
+>
+> This fork makes the original Deus Ex (2000, version 1112fm) run on a Mac with Apple Silicon.
+>
+> Claude Opus 5.5, an AI model of Anthropic, wrote 100% of the changes in this fork. The original project asks that changes made with such tools stay in a fork (see the [No AI Code Rule](NO-AI%20Code%20Rule.md)). Do not send these changes to the original project as a pull request.
+
 ![SEBANNER](Resources/surreal-engine-banner.png)
 
 # Welcome to Surreal Engine!
