@@ -91,11 +91,14 @@ void UActor::TickFalling(float elapsed)
 
 		if (hit.Fraction < 1.0f)
 		{
+			// As AActor::physFalling of the original, Deus Ex gives no HitWall event for the floor that an actor
+			// lands on. The actor gets the Landed event only.
+			bool landsOnFloor = engine->LaunchInfo.IsDeusEx() && !bBounce() && hit.Normal.z >= 0.7071f;
 			if (hit.Actor && hit.Actor->IsA("Pawn"))
 			{
 				// So projectiles don't think they hit a wall.
 			}
-			else
+			else if (!landsOnFloor)
 			{
 				FireHitWall(hit);
 			}
@@ -120,6 +123,9 @@ void UActor::TickFalling(float elapsed)
 							PhysLanded(hit.Actor, hit.Normal);
 							return;
 						}
+						// A second wall
+						if (hit.Fraction < 1.0f && engine->LaunchInfo.IsDeusEx())
+							FireHitWall(hit);
 					}
 
 					// adjust velocity along the slope

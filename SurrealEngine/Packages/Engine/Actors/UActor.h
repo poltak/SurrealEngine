@@ -423,6 +423,7 @@ public:
 	UPawn* PreparePawnMovementTick();
 	UActor* FloorBase(UActor* hitActor);
 	// Fires the HitWall event with the actor/level that was hit - used by every movement tick function.
+	// For Deus Ex the function has the filter of the original before the event. See UActor_Phys.cpp.
 	void FireHitWall(const CollisionHit& hit);
 	// Steps onto the ground if able, if not (would be falling) retuns false without moving
 	bool TryStepToGround(vec3 stepDownDelta);

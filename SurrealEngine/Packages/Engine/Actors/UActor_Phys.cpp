@@ -3,6 +3,7 @@
 #include "UActor.h"
 #include "VM/ScriptCall.h"
 #include "Engine.h"
+#include "Utils/Logger.h"
 #include "Packages/Engine/Actors/UProjectile.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
@@ -311,9 +312,86 @@ UPawn* UActor::PreparePawnMovementTick()
 	return pawn;
 }
 
+// For Deus Ex this function is AActor::processHitWall of Engine.dll (build 1112fm), which has a filter before the
+// script event HitWall:
+// - A contact with a pawn gives no event.
+// - A pawn gets no event when it has no acceleration.
+// - A pawn gets no event when the wall does not face against its way. The dot product of the direction to its
+//   destination and the wall normal must be MinHitWall at most. The persons of Deus Ex have a very large MinHitWall,
+//   so each wall counts for them. The player has -0.6, and its destination is the origin of the map.
+// - For a pawn that walks, the direction and the normal have no vertical part. The event gets that normal.
+// - A pawn that has no HitWall function in its state, and that does not fall, ends its move: MoveTimer becomes -1
+//   and bFromWall becomes true.
+// An actor that is not a pawn gets the event when it has a HitWall function in its state.
 void UActor::FireHitWall(const CollisionHit& hit)
 {
-	CallEvent(this, EventName::HitWall, { ExpressionValue::VectorValue(hit.Normal), ExpressionValue::ObjectValue(hit.Actor ? hit.Actor : Level()) });
+	UActor* hitActor = hit.Actor ? hit.Actor : static_cast<UActor*>(Level());
+	vec3 hitNormal = hit.Normal;
+
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		UPawn* pawn = UObject::TryCast<UPawn>(this);
+		// --tracepath=<name> of the test harness: a log line for a wall contact of the pawn with that name. A pawn that
+		// pushes against a wall has some contacts in each frame, so the same line comes one time in a second at most.
+		auto trace = [&](const std::string& result)
+			{
+				if (!pawn || !pawn->AITracePath())
+					return;
+				char buf[100];
+				snprintf(buf, sizeof(buf), " normal=(%.2f %.2f %.2f) ", hit.Normal.x, hit.Normal.y, hit.Normal.z);
+				std::string text = "Harness: hitwall " + Name.ToString() + " actor=" + hitActor->Name.ToString() + buf + result;
+				static std::string lastText;
+				static float lastTime = 0.0f;
+				float time = Level()->TimeSeconds();
+				if (text == lastText && time >= lastTime && time - lastTime < 1.0f)
+					return;
+				lastText = text;
+				lastTime = time;
+				LogMessage(text);
+			};
+
+		if (UObject::TryCast<UPawn>(hitActor))
+		{
+			trace("no event, the actor is a pawn");
+			return;
+		}
+
+		if (pawn)
+		{
+			if (Acceleration() == vec3(0.0f))
+			{
+				trace("no event, no acceleration");
+				return;
+			}
+
+			// FVector::SafeNormal
+			vec3 dir = pawn->Destination() - Location();
+			float sizeSquared = dot(dir, dir);
+			dir = sizeSquared < 0.00000001f ? vec3(0.0f) : dir * (1.0f / std::sqrt(sizeSquared));
+			if (Physics() == PHYS_Walking)
+			{
+				hitNormal.z = 0.0f;
+				dir.z = 0.0f;
+			}
+			if (pawn->MinHitWall() < dot(dir, hitNormal))
+			{
+				trace("no event, the wall does not face against the way");
+				return;
+			}
+
+			if (!IsEventEnabled(EventName::HitWall) && Physics() != PHYS_Falling)
+			{
+				pawn->MoveTimer() = -1.0f;
+				pawn->bFromWall() = true;
+				trace("no event, the move ends");
+				return;
+			}
+		}
+
+		trace("event");
+	}
+
+	CallEvent(this, EventName::HitWall, { ExpressionValue::VectorValue(hitNormal), ExpressionValue::ObjectValue(hitActor) });
 }
 
 bool UActor::TryStepToGround(vec3 stepDownDelta)
