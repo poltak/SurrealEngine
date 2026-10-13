@@ -480,6 +480,8 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/Packages/DeusEx/AIEventManager.cpp
 	SurrealEngine/Packages/DeusEx/AIEventManager.h
 	SurrealEngine/Packages/DeusEx/AIPerception.cpp
+	SurrealEngine/Packages/DeusEx/PathSearch.cpp
+	SurrealEngine/Packages/DeusEx/ReachTest.cpp
 	SurrealEngine/Packages/DeusEx/DeusExGameEngine.cpp
 	SurrealEngine/Packages/DeusEx/DeusExTravel.cpp
 	SurrealEngine/Packages/DeusEx/DeusExTravel.h

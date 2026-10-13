@@ -89,13 +89,35 @@ public:
 		UNavigationPoint* NavPoint = nullptr;
 		float Distance = 0.0f;
 	};
+	// The results of the test steps (walkMove, flyMove and swimMove of the original)
+	enum AIMoveResult
+	{
+		MoveFalling = -1,
+		MoveBlocked = 0,
+		MoveOk = 1,
+		MoveBumpedGoal = 5
+	};
 	CollisionHit AITestMove(const vec3& delta);
-	int AIWalkMove(vec3 delta, float threshold);
-	int AIFlyMove(vec3 delta, float threshold);
-	int AISwimMove(vec3 delta, float threshold);
+	bool AITestFarMove(const vec3& location);
+	PointRegion AITestRegion();
+	PointRegion AITestFootRegion();
+	int AIWalkMove(vec3 delta, float threshold, UActor* goalActor = nullptr, CollisionHit* lastHit = nullptr);
+	int AIFlyMove(vec3 delta, float threshold, UActor* goalActor = nullptr);
+	int AISwimMove(vec3 delta, float threshold, UActor* goalActor = nullptr);
 	bool AIDirectionReachable(vec3 focus, int yaw, int pitch, float minDist, float maxDist, vec3& bestDest);
 	bool AIPickRandomDestination(float minDist, float maxDist, int centralYaw, float yawDistribution, int centralPitch, float pitchDistribution, int tries, float multiplier, vec3& dest);
 	int AICalcMoveFlags();
+	// The path search of Deus Ex. See Packages/DeusEx/PathSearch.cpp.
+	UObject* FindPathTowardDeusEx(UActor* goal, bool singlePath, bool clearPaths);
+	UObject* FindPathToDeusEx(const vec3& dest, bool singlePath, bool clearPaths);
+	bool AICanMoveTo(UNavigationPoint* anchor, UNavigationPoint* dest);
+	bool AITracePath();
+	// The reach tests of Deus Ex. See Packages/DeusEx/ReachTest.cpp.
+	bool ActorReachableDeusEx(UActor* other, bool knowVisible);
+	bool ActorReachableScriptDeusEx(UActor* actor);
+	bool PointReachableDeusEx(vec3 point, bool knowVisible);
+	int ReachableDeusEx(const vec3& point, float threshold, UActor* goalActor);
+	vec3 AIJumpLanding(vec3 velocity, bool movePawn);
 	Array<AINavInfo> AIGetPathnodeList(int maxCount, UActor* startActor, bool usePrunedPaths, bool sort);
 	void AIComputePathnodeDistances(UActor* startActor);
 	float AICanHear(UActor* other, std::optional<float> volume, std::optional<float> radius);

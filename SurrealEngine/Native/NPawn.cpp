@@ -122,6 +122,11 @@ void NPawn::FindBestInventoryPath(UObject* Self, float& MinWeight, bool bPredict
 void NPawn::FindPathTo(UObject* Self, const vec3& aPoint, std::optional<bool> bSinglePath, std::optional<bool> bClearPaths, UObject*& ReturnValue)
 {
 	UPawn* selfPawn = UObject::Cast<UPawn>(Self);
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		ReturnValue = selfPawn->FindPathToDeusEx(aPoint, bSinglePath ? *bSinglePath : false, !bClearPaths || *bClearPaths);
+		return;
+	}
 	if (!bClearPaths || *bClearPaths)
 		selfPawn->ClearPaths();
 	ReturnValue = selfPawn->FindPathTo(aPoint, bSinglePath ? *bSinglePath : false);
@@ -130,6 +135,11 @@ void NPawn::FindPathTo(UObject* Self, const vec3& aPoint, std::optional<bool> bS
 void NPawn::FindPathToward(UObject* Self, UObject* anActor, std::optional<bool> bSinglePath, std::optional<bool> bClearPaths, UObject*& ReturnValue)
 {
 	UPawn* selfPawn = UObject::Cast<UPawn>(Self);
+	if (engine->LaunchInfo.IsDeusEx())
+	{
+		ReturnValue = selfPawn->FindPathTowardDeusEx(UObject::TryCast<UActor>(anActor), bSinglePath ? *bSinglePath : false, !bClearPaths || *bClearPaths);
+		return;
+	}
 	if (!bClearPaths || *bClearPaths)
 		selfPawn->ClearPaths();
 	ReturnValue = selfPawn->FindPathToward(anActor, bSinglePath ? *bSinglePath : false);
@@ -286,13 +296,19 @@ void NPawn::WaitForLanding(UObject* Self)
 void NPawn::actorReachable(UObject* Self, UObject* anActor, BitfieldBool& ReturnValue)
 {
 	UPawn* SelfPawn = UObject::Cast<UPawn>(Self);
-	ReturnValue = SelfPawn->ActorReachable(UObject::Cast<UActor>(anActor), true);
+	if (engine->LaunchInfo.IsDeusEx())
+		ReturnValue = SelfPawn->ActorReachableScriptDeusEx(UObject::TryCast<UActor>(anActor));
+	else
+		ReturnValue = SelfPawn->ActorReachable(UObject::Cast<UActor>(anActor), true);
 }
 
 void NPawn::pointReachable(UObject* Self, const vec3& aPoint, BitfieldBool& ReturnValue)
 {
 	UPawn* SelfPawn = UObject::Cast<UPawn>(Self);
-	ReturnValue = SelfPawn->PointReachable(aPoint);
+	if (engine->LaunchInfo.IsDeusEx())
+		ReturnValue = SelfPawn->PointReachableDeusEx(aPoint, false);
+	else
+		ReturnValue = SelfPawn->PointReachable(aPoint);
 }
 
 void NPawn::AICanHear(UObject* Self, UObject* Other, std::optional<float> Volume, std::optional<float> Radius, float& ReturnValue)

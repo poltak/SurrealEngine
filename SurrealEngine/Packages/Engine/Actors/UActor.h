@@ -455,6 +455,7 @@ public:
 	bool TraceThisActor(vec3& TraceEnd, vec3 TraceStart, vec3* HitLocation, vec3* HitNormal, std::optional<vec3> Extent);
 
 	CollisionHit TryMove(const vec3& delta, bool dryRun = false, bool isOwnBaseBlocking = true);
+	static void TwoWallAdjust(const vec3& desiredDir, vec3& delta, const vec3& hitNormal, const vec3& oldHitNormal, float hitTime);
 	CollisionHit TryMoveSmooth(const vec3& delta);
 	bool Move(const vec3& delta);
 	bool MoveSmooth(const vec3& delta);

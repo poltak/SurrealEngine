@@ -94,6 +94,7 @@ public:
 	int Seed = -1;           // --seed=<N>: seed of the random number generator, for runs that repeat exactly
 	bool Mute = false;       // --mute: no sound output
 	bool TraceAI = false;    // --traceai: log each step of AICanSee for a player target
+	std::string TracePath;   // --tracepath=<actor name>: log each path search, each reach test of the script and each direction test of this pawn (Deus Ex)
 	bool CaptureTexts() const { return captureTextFrames > 0; }
 	void LogDrawnText(float x, float y, const std::string& text);
 

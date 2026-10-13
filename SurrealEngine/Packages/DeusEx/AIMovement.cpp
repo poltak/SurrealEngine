@@ -5,6 +5,7 @@
 #include "Math/coords.h"
 #include "Utils/Random.h"
 #include "Packages/Engine/Actors/Pawn/UPawn.h"
+#include "Packages/Engine/Actors/Decoration/UDecoration.h"
 #include "Packages/Engine/Actors/Info/ULevelInfo.h"
 #include "Packages/Engine/Actors/Info/UZoneInfo.h"
 #include "Packages/Engine/Actors/NavigationPoint/UNavigationPoint.h"
@@ -21,14 +22,11 @@
 // - GetPathnodeList gives the navigation points that the pawn can go to first, with their distances.
 // - ComputePathnodeDistances writes the path distance from the pawn into visitedWeight of each navigation point.
 //
-// The test steps are walkMove, flyMove and swimMove of the original engine. They ignore other pawns.
+// The test steps are walkMove, flyMove and swimMove of the original engine with bAdjust = 0. They go through other
+// pawns and through decorations. The reach tests in ReachTest.cpp use the same steps.
 
 namespace
 {
-	const int MoveBlocked = 0;
-	const int MoveOk = 1;
-	const int MoveFalling = -1;
-
 	// -1: nearer than the band. 0: in the band. 1: farther than the band.
 	int RangeCheck(float minDistSquared, float distSquared, float maxDistSquared)
 	{
@@ -41,6 +39,7 @@ namespace
 }
 
 // ULevel::MoveActor with bTest and bIgnorePawns: move as far as the world and the blocking actors permit.
+// The move goes through each pawn, and through each decoration that is not static.
 // No touch or bump events. The collision hash keeps the old position, the caller puts the pawn back.
 CollisionHit UPawn::AITestMove(const vec3& delta)
 {
@@ -55,6 +54,8 @@ CollisionHit UPawn::AITestMove(const vec3& delta)
 		{
 			if (hit.Actor == this || UObject::TryCast<UPawn>(hit.Actor))
 				continue;
+			if (UObject::TryCast<UDecoration>(hit.Actor) && !hit.Actor->bStatic())
+				continue;
 			if (!hit.Actor->bBlockActors() || !bBlockActors())
 				continue;
 			if (hit.Actor->IsBasedOn(this) || IsBasedOn(hit.Actor))
@@ -68,24 +69,62 @@ CollisionHit UPawn::AITestMove(const vec3& delta)
 	return blockingHit;
 }
 
-// APawn::walkMove(Delta, Hit, NULL, threshold, bAdjust = 0)
-int UPawn::AIWalkMove(vec3 delta, float threshold)
+// ULevel::FarMoveActor with bTest: put the pawn at a location, or at a free place near it. No events.
+// The caller puts the pawn back.
+bool UPawn::AITestFarMove(const vec3& location)
 {
+	auto spot = CheckLocation(location, CollisionRadius(), CollisionHeight(), bCollideWorld() || bCollideWhenPlacing());
+	if (!spot.first)
+		return false;
+	Location() = spot.second;
+	return true;
+}
+
+// The original sets Region and FootRegion of the pawn in each test move. This engine does not change them in a test.
+// These functions give the two regions for the place of the pawn in a test.
+PointRegion UPawn::AITestRegion()
+{
+	return XLevel()->Model->FindRegion(Location(), Level());
+}
+
+PointRegion UPawn::AITestFootRegion()
+{
+	vec3 footLocation = Location();
+	footLocation.z -= CollisionHeight();
+	return XLevel()->Model->FindRegion(footLocation, Level());
+}
+
+// APawn::walkMove(Delta, Hit, GoalActor, threshold, bAdjust = 0): one test step on the ground.
+// MoveOk: the pawn went the step. MoveBlocked: a wall or an actor stopped the pawn. MoveFalling: the end of the step
+// has no floor. MoveBumpedGoal: the pawn hit the goal actor.
+// A step that finds no floor in a drop of the step height leaves the pawn at the end of the step, above the ground.
+// The jump test of the walk reach test starts at that place.
+int UPawn::AIWalkMove(vec3 delta, float threshold, UActor* goalActor, CollisionHit* lastHit)
+{
+	CollisionHit localHit;
+	CollisionHit& hit = lastHit ? *lastHit : localHit;
 	vec3 startLocation = Location();
 	delta.z = 0.0f;
 
-	float gravityDirection = Region().Zone && Region().Zone->ZoneGravity().z > 0.0f ? 1.0f : -1.0f;
+	UZoneInfo* zone = AITestRegion().Zone;
+	float gravityDirection = zone && zone->ZoneGravity().z > 0.0f ? 1.0f : -1.0f;
 	vec3 down = vec3(0.0f, 0.0f, gravityDirection * MaxStepHeight());
 	vec3 up = down * -1.0f;
 
-	CollisionHit hit = AITestMove(delta);
+	hit = AITestMove(delta);
+	if (goalActor && hit.Actor == goalActor)
+		return MoveBumpedGoal;
 	if (hit.Fraction < 1.0f)
 	{
 		// Try to step up
 		delta = delta * (1.0f - hit.Fraction);
-		AITestMove(up);
-		AITestMove(delta);
+		hit = AITestMove(up);
+		hit = AITestMove(delta);
+		if (goalActor && hit.Actor == goalActor)
+			return MoveBumpedGoal;
 		hit = AITestMove(down);
+		if (goalActor && hit.Actor == goalActor)
+			return MoveBumpedGoal;
 
 		// Only a good floor is acceptable
 		if (hit.Fraction < 1.0f && hit.Normal.z < 0.7f)
@@ -96,8 +135,14 @@ int UPawn::AIWalkMove(vec3 delta, float threshold)
 	}
 
 	// Drop to the floor
+	vec3 stepEnd = Location();
 	hit = AITestMove(vec3(0.0f, 0.0f, gravityDirection * (MaxStepHeight() + 2.0f)));
-	if (hit.Fraction == 1.0f || hit.Normal.z < 0.7f)
+	if (hit.Fraction == 1.0f)
+	{
+		Location() = stepEnd;
+		return MoveFalling;
+	}
+	if (hit.Normal.z < 0.7f)
 	{
 		Location() = startLocation;
 		return MoveFalling;
@@ -109,18 +154,22 @@ int UPawn::AIWalkMove(vec3 delta, float threshold)
 	return MoveOk;
 }
 
-// APawn::flyMove(Delta, NULL, threshold, bAdjust = 0)
-int UPawn::AIFlyMove(vec3 delta, float threshold)
+// APawn::flyMove(Delta, GoalActor, threshold, bAdjust = 0)
+int UPawn::AIFlyMove(vec3 delta, float threshold, UActor* goalActor)
 {
 	vec3 startLocation = Location();
 	vec3 up = vec3(0.0f, 0.0f, MaxStepHeight());
 
 	CollisionHit hit = AITestMove(delta);
+	if (goalActor && hit.Actor == goalActor)
+		return MoveBumpedGoal;
 	if (hit.Fraction < 1.0f)
 	{
 		delta = delta * (1.0f - hit.Fraction);
 		AITestMove(up);
-		AITestMove(delta);
+		hit = AITestMove(delta);
+		if (goalActor && hit.Actor == goalActor)
+			return MoveBumpedGoal;
 	}
 
 	vec3 moved = Location() - startLocation;
@@ -129,19 +178,34 @@ int UPawn::AIFlyMove(vec3 delta, float threshold)
 	return MoveOk;
 }
 
-// APawn::swimMove(Delta, NULL, threshold, bAdjust = 0)
-int UPawn::AISwimMove(vec3 delta, float threshold)
+// APawn::swimMove(Delta, GoalActor, threshold, bAdjust = 0)
+int UPawn::AISwimMove(vec3 delta, float threshold, UActor* goalActor)
 {
 	vec3 startLocation = Location();
 	vec3 up = vec3(0.0f, 0.0f, MaxStepHeight());
 
 	CollisionHit hit = AITestMove(delta);
+	if (goalActor && hit.Actor == goalActor)
+		return MoveBumpedGoal;
 
-	PointRegion region = XLevel()->Model->FindRegion(Location(), Level());
-	if (!region.Zone || !region.Zone->bWaterZone())
+	UZoneInfo* zone = AITestRegion().Zone;
+	if (!zone || !zone->bWaterZone())
 	{
-		// The pawn came out of the water. The original puts it back on the water line and stops there.
-		Location() = startLocation;
+		// The pawn came out of the water. Put it back to the water line (APawn::findWaterLine): the first place on
+		// the line of the step that is out of the water. The search halves the line until it is shorter than 1 unit.
+		vec3 start = startLocation;
+		vec3 end = Location();
+		while (dot(end - start, end - start) >= 1.0f)
+		{
+			vec3 middle = (start + end) * 0.5f;
+			UZoneInfo* middleZone = XLevel()->Model->FindRegion(middle, Level()).Zone;
+			if (middleZone && middleZone->bWaterZone())
+				start = middle;
+			else
+				end = middle;
+		}
+		if (end != Location())
+			AITestMove(end - Location());
 		return MoveBlocked;
 	}
 
@@ -149,7 +213,9 @@ int UPawn::AISwimMove(vec3 delta, float threshold)
 	{
 		delta = delta * (1.0f - hit.Fraction);
 		AITestMove(up);
-		AITestMove(delta);
+		hit = AITestMove(delta);
+		if (goalActor && hit.Actor == goalActor)
+			return MoveBumpedGoal;
 	}
 
 	vec3 moved = Location() - startLocation;
@@ -224,7 +290,7 @@ bool UPawn::AIDirectionReachable(vec3 focus, int yaw, int pitch, float minDist, 
 			}
 			else if (mode == Mode::Walk && result == MoveFalling && MaxStepHeight() < stepSize)
 			{
-				// A ledge. Go on with smaller steps to come near to its edge.
+				// A ledge. The pawn is at the end of the step, above the ground. Go on from there with smaller steps.
 				stepSize = MaxStepHeight();
 				result = MoveOk;
 			}
@@ -267,6 +333,23 @@ bool UPawn::AIDirectionReachable(vec3 focus, int yaw, int pitch, float minDist, 
 			result = MoveBlocked;
 		}
 		range = newRange;
+	}
+
+	if (AITracePath())
+	{
+		char buf[200];
+		snprintf(buf, sizeof(buf), " yaw=%d min=%.0f max=%.0f", yaw & 65535, minDist, maxDist);
+		std::string text = "Harness: direction " + Name.ToString() + buf;
+		if (found)
+		{
+			snprintf(buf, sizeof(buf), " dest=(%.0f %.0f %.0f)", bestLocation.x, bestLocation.y, bestLocation.z);
+			text += buf;
+		}
+		else
+		{
+			text += " no";
+		}
+		LogMessage(text);
 	}
 
 	Location() = savedLocation;
@@ -412,7 +495,7 @@ Array<UPawn::AINavInfo> UPawn::AIGetPathnodeList(int maxCount, UActor* startActo
 		Array<AINavInfo> reachable;
 		for (const AINavInfo& info : list)
 		{
-			if (ActorReachable(info.NavPoint, false))
+			if (ActorReachableDeusEx(info.NavPoint, false))
 				reachable.push_back(info);
 		}
 		list = std::move(reachable);

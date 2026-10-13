@@ -427,7 +427,7 @@ BoundingBox UActor::GetWorldCollisionBox(bool bVisual)
 }
 
 // The move after a second wall, as AActor::TwoWallAdjust of the original engine
-static void TwoWallAdjust(const vec3& desiredDir, vec3& delta, const vec3& hitNormal, const vec3& oldHitNormal, float hitTime)
+void UActor::TwoWallAdjust(const vec3& desiredDir, vec3& delta, const vec3& hitNormal, const vec3& oldHitNormal, float hitTime)
 {
 	if (dot(hitNormal, oldHitNormal) > 0.0f)
 	{

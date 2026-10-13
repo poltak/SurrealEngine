@@ -83,6 +83,7 @@ void Harness::Init()
 	Mute = commandline->HasArg({}, "--mute");
 	TraceKeys = commandline->HasArg({}, "--tracekeys");
 	TraceAI = commandline->HasArg({}, "--traceai");
+	TracePath = commandline->GetArg({}, "--tracepath");
 	CheckNatives = commandline->HasArg({}, "--checknatives");
 	ShowStats = commandline->HasArg({}, "--stats");
 	KeepLevelData = commandline->HasArg({}, "--keep-level-data");
