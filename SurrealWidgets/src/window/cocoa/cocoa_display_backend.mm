@@ -54,8 +54,10 @@ CocoaDisplayBackend::CocoaDisplayBackend()
     // Only configure NSApp if we're the owner (no delegate set yet)
     if ([NSApp delegate] == nil)
     {
-        // We're the primary app - set activation policy for keyboard events
-        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+        // We're the primary app - set activation policy for keyboard events.
+        // A test with hidden windows is an accessory program: it has no icon in the Dock, it is not in the program
+        // switcher, and macOS does not make it the active program at its start.
+        [NSApp setActivationPolicy:CocoaHiddenWindows() ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];
         [NSApp finishLaunching];
     }
     // else: Parent app is managing NSApp lifecycle, don't interfere

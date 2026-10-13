@@ -720,6 +720,27 @@ CVReturn CocoaDisplayWindowImpl::displayLinkOutputCallback(CVDisplayLinkRef disp
     return kCVReturnSuccess;
 }
 
+// A test runner sets SURREAL_HIDDEN_WINDOW so that the windows of a test do not get in the way of the person at the
+// computer. A window is then on the screen as usual for macOS, so the game draws into it and a test can send events
+// to it. But the window is fully transparent, the mouse goes through it to the windows below, and Mission Control
+// and the window cycle do not have it. The program has no icon in the Dock and does not become the active program
+// (see CocoaDisplayBackend).
+bool CocoaHiddenWindows()
+{
+    static bool hidden = getenv("SURREAL_HIDDEN_WINDOW") != nullptr;
+    return hidden;
+}
+
+static void HideFromPerson(NSWindow* window)
+{
+    if (!CocoaHiddenWindows())
+        return;
+    [window setAlphaValue:0.0];
+    [window setHasShadow:NO];
+    [window setIgnoresMouseEvents:YES];
+    [window setCollectionBehavior:NSWindowCollectionBehaviorStationary | NSWindowCollectionBehaviorIgnoresCycle | NSWindowCollectionBehaviorFullScreenNone];
+}
+
 CocoaDisplayWindow::CocoaDisplayWindow(DisplayWindowHost* windowHost, WidgetType type, DisplayWindow* owner, RenderAPI renderAPI)
 {
     impl = std::make_unique<CocoaDisplayWindowImpl>();
@@ -735,6 +756,7 @@ CocoaDisplayWindow::CocoaDisplayWindow(DisplayWindowHost* windowHost, WidgetType
     impl->delegate = [[ZWidgetWindowDelegate alloc] initWithImpl:impl.get()];
     [impl->window setDelegate:impl->delegate];
     [impl->window setCollectionBehavior:NSWindowCollectionBehaviorFullScreenPrimary];
+    HideFromPerson(impl->window);
     [impl->window setAcceptsMouseMovedEvents:YES];
     [impl->window setRestorable:NO];
     [impl->window setReleasedWhenClosed:NO];
@@ -897,10 +919,11 @@ Size CocoaDisplayWindow::GetClientSize() const
 }
 
 // A test runner sets SURREAL_NO_ACTIVATE so that a test window does not take the keyboard focus from the person at
-// the computer. The window then opens behind the windows of the active app.
+// the computer. The window then opens behind the windows of the active app. A program with hidden windows does not
+// take the focus also.
 static bool AllowAppActivation()
 {
-    static bool allow = getenv("SURREAL_NO_ACTIVATE") == nullptr;
+    static bool allow = getenv("SURREAL_NO_ACTIVATE") == nullptr && !CocoaHiddenWindows();
     return allow;
 }
 
@@ -991,6 +1014,7 @@ void CocoaDisplayWindow::SetWindowResizable(bool enable)
         // The zoom button survives the style mask change, so disable it too
         [[impl->window standardWindowButton:NSWindowZoomButton] setEnabled:enable];
         [impl->window setCollectionBehavior:enable ? NSWindowCollectionBehaviorFullScreenPrimary : NSWindowCollectionBehaviorFullScreenNone];
+        HideFromPerson(impl->window);
     }
 
     if (enable)

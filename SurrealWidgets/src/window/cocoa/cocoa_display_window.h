@@ -8,6 +8,9 @@
 
 struct CocoaDisplayWindowImpl;
 
+// True when a test runner set SURREAL_HIDDEN_WINDOW: the windows of the program do not show. See cocoa_display_window.mm.
+bool CocoaHiddenWindows();
+
 class CocoaDisplayWindow : public DisplayWindow
 {
 public:
