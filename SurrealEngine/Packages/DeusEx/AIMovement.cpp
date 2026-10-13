@@ -158,7 +158,8 @@ int UPawn::AISwimMove(vec3 delta, float threshold)
 	return MoveOk;
 }
 
-bool UPawn::AIDirectionReachable(const vec3& focus, int yaw, int pitch, float minDist, float maxDist, vec3& bestDest)
+// The focus is a copy. A caller can give the location of this pawn as the focus, and the test moves the pawn.
+bool UPawn::AIDirectionReachable(vec3 focus, int yaw, int pitch, float minDist, float maxDist, vec3& bestDest)
 {
 	enum class Mode { Walk, Fly, Swim };
 

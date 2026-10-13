@@ -93,7 +93,7 @@ public:
 	int AIWalkMove(vec3 delta, float threshold);
 	int AIFlyMove(vec3 delta, float threshold);
 	int AISwimMove(vec3 delta, float threshold);
-	bool AIDirectionReachable(const vec3& focus, int yaw, int pitch, float minDist, float maxDist, vec3& bestDest);
+	bool AIDirectionReachable(vec3 focus, int yaw, int pitch, float minDist, float maxDist, vec3& bestDest);
 	bool AIPickRandomDestination(float minDist, float maxDist, int centralYaw, float yawDistribution, int centralPitch, float pitchDistribution, int tries, float multiplier, vec3& dest);
 	int AICalcMoveFlags();
 	Array<AINavInfo> AIGetPathnodeList(int maxCount, UActor* startActor, bool usePrunedPaths, bool sort);
