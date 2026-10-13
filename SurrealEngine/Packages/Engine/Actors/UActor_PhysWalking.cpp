@@ -102,6 +102,78 @@ bool UActor::IsAtLadder()
 	return false;
 }
 
+// APawn::stepUp of the Engine.dll of Deus Ex (build 1112fm). It makes the rest of the move of a pawn that walks,
+// after something stopped the pawn. The pawn goes up by the height of a step, moves there, and comes down again.
+// The contact rules apply at the height of the step. So the pawn gets up a step, and the next step of stairs does
+// not stop a pawn that slides along a wall or an actor.
+// 1. Move up by stepUpDelta, then move by delta.
+// 2. The player walks against a decoration that it can push, not more than 26 degrees away from head-on (dot
+//    product of desiredDir and the hit normal < -0.9). Its velocity gets the factor Mass / (Mass + mass of the
+//    decoration), and bJustTeleported keeps that velocity for the next tick. The Bump event of the decoration
+//    uses the velocity of the player to push the decoration.
+// 3. A contact with a vertical surface after a move of more than 12 units (hit time * square of delta > 144).
+//    The pawn is on a step and the next step is in its way, so do the function again with the rest of delta.
+// 4. Each other contact, with the level or with an actor. Call the HitWall filter, then slide along the surface
+//    with the rest of delta. If a second surface stops the slide, TwoWallAdjust gives the move along that surface,
+//    or along the line where the two surfaces meet.
+// 5. Move down by the height of the step. On a surface that is too steep to stand on (normal Z < 0.5), slide
+//    down along it.
+// desiredDir is the direction of the move before the first contact. The result is false when a script event of a
+// contact changed the physics to PHYS_Falling. The pawn then stays where it is, and the caller must stop.
+bool UActor::StepUpDeusEx(UPlayerPawn* player, const vec3& stepUpDelta, const vec3& desiredDir, const vec3& delta)
+{
+	TryMove(stepUpDelta);
+	CollisionHit hit = TryMove(delta);
+
+	if (hit.Fraction < 1.0f)
+	{
+		UDecoration* decoration = player ? UObject::TryCast<UDecoration>(hit.Actor) : nullptr;
+		if (decoration && decoration->bPushable() && dot(desiredDir, hit.Normal) < -0.9f)
+		{
+			bJustTeleported() = true;
+			Velocity() = Velocity() * (Mass() / (Mass() + decoration->Mass()));
+			FireHitWall(hit);
+			if (Physics() == PHYS_Falling)
+				return false;
+		}
+		else if (std::abs(hit.Normal.z) < 0.2f && hit.Fraction * dot(delta, delta) > 144.0f)
+		{
+			if (!StepUpDeusEx(player, stepUpDelta, desiredDir, delta * (1.0f - hit.Fraction)))
+				return false;
+		}
+		else
+		{
+			FireHitWall(hit);
+
+			vec3 oldHitNormal = hit.Normal;
+			vec3 slide = (delta - hit.Normal * dot(delta, hit.Normal)) * (1.0f - hit.Fraction);
+			if (dot(slide, delta) >= 0.0f) // Don't end up going backwards
+			{
+				hit = TryMove(slide);
+				if (hit.Fraction < 1.0f)
+				{
+					FireHitWall(hit);
+					if (Physics() == PHYS_Falling)
+						return false;
+
+					TwoWallAdjust(desiredDir, slide, hit.Normal, oldHitNormal, hit.Fraction);
+					TryMove(slide);
+				}
+			}
+		}
+	}
+
+	vec3 stepDown = -stepUpDelta;
+	hit = TryMove(stepDown);
+	if (hit.Fraction < 1.0f && hit.Normal.z < 0.5f)
+	{
+		vec3 slide = (stepDown - hit.Normal * dot(stepDown, hit.Normal)) * (1.0f - hit.Fraction);
+		if (dot(slide, stepDown) >= 0.0f)
+			TryMove(slide);
+	}
+	return true;
+}
+
 void UActor::TickWalking(float elapsed)
 {
 	// Only pawns can walk!
@@ -139,10 +211,16 @@ void UActor::TickWalking(float elapsed)
 	//old position for tracking
 	vec3 oldPosition = Location();
 
+	// The player of Deus Ex makes the rest of a move after a contact as the original does. See StepUpDeusEx.
+	// The other pawns, and all pawns of other games, use the step up and the contact branches below.
+	bool deusExStepUp = player && engine->LaunchInfo.IsDeusEx();
+
 	//included Z in check - if its not 0 due to Zone properties, no action would have been taken previously
 	//could lead to latend bugs
 	if (length(vel) > 0)
 	{
+		vec3 desiredDir = vel * (1.0f / length(vel));
+
 		for (int iteration = 0; timeLeft > 0.0f && iteration < 5; iteration++)
 		{
 			if (ShouldAbortMovementTick(PHYS_Walking))
@@ -159,6 +237,17 @@ void UActor::TickWalking(float elapsed)
 			CollisionHit hit = TryMove(moveDelta);
 			timeLeft -= timeLeft * hit.Fraction;
 			moveDelta = vel * timeLeft;
+
+			if (hit.Fraction < 1.0f && deusExStepUp)
+			{
+				// As APawn::physWalking of the original: the step up uses all of the time that the tick has left,
+				// and the check for the floor comes after it. A script event of a contact can end the walk.
+				if (!StepUpDeusEx(player, stepUpDelta, desiredDir, moveDelta) || ShouldAbortMovementTick(PHYS_Walking))
+					return;
+				if (ShouldAbortJumping(pawn, oldPosition, stepDownDelta))
+					return;
+				break;
+			}
 
 			//check for fall and backtrack
 			if (ShouldAbortJumping(pawn, oldPosition, stepDownDelta))

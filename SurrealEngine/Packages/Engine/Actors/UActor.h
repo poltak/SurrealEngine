@@ -6,6 +6,7 @@
 class UZoneInfo;
 class UTexture;
 class UPawn;
+class UPlayerPawn;
 class UInventory;
 class UPrimitive;
 class UMesh;
@@ -397,6 +398,8 @@ public:
 
 	virtual void TickPhysics(float elapsed);
 	void TickWalking(float elapsed);
+	// Deus Ex: the rest of a walking move after a contact, as APawn::stepUp of the original. See UActor_PhysWalking.cpp.
+	bool StepUpDeusEx(UPlayerPawn* player, const vec3& stepUpDelta, const vec3& desiredDir, const vec3& delta);
 	bool TickLadder(UPawn* pawn, float elapsed);
 	bool IsAtLadder();
 	void TickFalling(float elapsed);
