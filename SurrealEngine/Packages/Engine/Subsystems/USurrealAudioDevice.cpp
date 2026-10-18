@@ -530,11 +530,14 @@ void USurrealAudioDevice::ActorDestroyed(UActor* Actor)
 	}
 }
 
-void USurrealAudioDevice::StopSound(UActor* Actor, int Id)
+// As AActor::execStopSound in the Engine.dll of Deus Ex (build 1112fm): the audio device gets the sound id only. The
+// id already holds the actor that plays the sound, so the actor that calls StopSound does not count. A conversation
+// plays a line through the actor that speaks, and stops it with player.StopSound when the player skips the line.
+void USurrealAudioDevice::StopSoundById(int Id)
 {
 	for (size_t i = 0; i < PlayingSounds.size(); i++)
 	{
-		if (PlayingSounds[i].Actor == Actor && PlayingSounds[i].Id == Id)
+		if (PlayingSounds[i].Id == Id)
 		{
 			StopSound(i);
 			break;

@@ -957,8 +957,7 @@ void NActor::SetInstantSpeechVolume(UObject* Self, uint8_t newSpeechVolume)
 
 void NActor::StopSound_Deus(UObject* Self, int Id)
 {
-	UActor* SelfActor = UObject::Cast<UActor>(Self);
-	engine->audiodev->StopSound(SelfActor, Id);
+	engine->audiodev->StopSoundById(Id);
 }
 
 void NActor::TweenBlendAnim(UObject* Self, const NameString& Sequence, float Time, std::optional<int> BlendSlot)
