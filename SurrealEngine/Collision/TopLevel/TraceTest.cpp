@@ -30,28 +30,10 @@ CollisionHitList TraceTester::Trace(const vec3& from, const vec3& to, float heig
 	vec3 extents = { radius, radius, height };
 
 	int checkCounter = NextCheckCounter();
-	ivec3 start = GetSweepStartExtents(from, to, extents);
-	ivec3 end = GetSweepEndExtents(from, to, extents);
-	if (end.x - start.x < 100 && end.y - start.y < 100 && end.z - start.z < 100)
-	{
-		for (int z = start.z; z < end.z; z++)
-		{
-			for (int y = start.y; y < end.y; y++)
-			{
-				for (int x = start.x; x < end.x; x++)
-				{
-					for (UActor* actor : GetActors(x, y, z))
-					{
-						if (actor->Collision.CheckCounter != checkCounter)
-						{
-							actor->Collision.CheckCounter = checkCounter;
-							TraceActor(actor, origin, tmin, direction, tmax, dheight, dradius, traceActors, traceWorld, visibilityOnly, hits);
-						}
-					}
-				}
-			}
-		}
-	}
+	ForEachActorAlongSweep(from, to, extents, checkCounter, [&](UActor* actor) {
+		TraceActor(actor, origin, tmin, direction, tmax, dheight, dradius, traceActors, traceWorld, visibilityOnly, hits);
+		return false;
+	});
 
 	if (traceWorld)
 	{
@@ -121,33 +103,14 @@ bool TraceTester::TraceAnyHit(vec3 from, vec3 to, UActor* tracingActor, bool tra
 	CollisionHitList hits;
 
 	int checkCounter = NextCheckCounter();
-	ivec3 start = GetRayStartExtents(from, to);
-	ivec3 end = GetRayEndExtents(from, to);
-	if (end.x - start.x < 100 && end.y - start.y < 100 && end.z - start.z < 100)
-	{
-		for (int z = start.z; z < end.z; z++)
-		{
-			for (int y = start.y; y < end.y; y++)
-			{
-				for (int x = start.x; x < end.x; x++)
-				{
-					for (UActor* actor : GetActors(x, y, z))
-					{
-						if (actor->Collision.CheckCounter != checkCounter)
-						{
-							actor->Collision.CheckCounter = checkCounter;
-							if (actor != tracingActor && actor->bBlockActors())
-							{
-								TraceActor(actor, origin, tmin, direction, tmax, 0.0, 0.0, traceActors, traceWorld, visibilityOnly, hits);
-								if (!hits.empty())
-									return true;
-							}
-						}
-					}
-				}
-			}
-		}
-	}
+	bool actorHit = ForEachActorAlongSweep(from, to, vec3(0.0f), checkCounter, [&](UActor* actor) {
+		if (actor == tracingActor || !actor->bBlockActors())
+			return false;
+		TraceActor(actor, origin, tmin, direction, tmax, 0.0, 0.0, traceActors, traceWorld, visibilityOnly, hits);
+		return !hits.empty();
+	});
+	if (actorHit)
+		return true;
 
 	if (traceWorld)
 	{
