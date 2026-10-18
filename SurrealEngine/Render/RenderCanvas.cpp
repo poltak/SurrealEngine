@@ -83,6 +83,11 @@ void RenderSubsystem::RenderOverlays()
 	{
 		if (engine->LaunchInfo.ue1Version > 219)
 		{
+			// As URender::DrawWorld in the Render.dll of Deus Ex (build 1112fm): the render device clears the depth
+			// buffer before the RenderOverlays event. The weapon of the player is drawn in that event, so a wall
+			// near the camera does not cut the weapon.
+			if (engine->LaunchInfo.IsDeusEx())
+				Device->ClearZ();
 			CallEvent(engine->viewport->Actor(), EventName::RenderOverlays, { ExpressionValue::ObjectValue(engine->canvas) });
 		}
 		else
