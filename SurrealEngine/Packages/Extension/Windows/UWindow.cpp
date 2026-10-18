@@ -1951,7 +1951,20 @@ void UWindow::DrawRawBackground(UGC* gc)
 		}
 		else if (Background())
 		{
-			gc->DrawPattern(0.0f, 0.0f, Width(), Height(), 0.0f, 0.0f, Background());
+			// The root window of this engine is a 4:3 box in the middle of the screen (see GetVirtualWidth). In the
+			// original, the root window covers the full screen. The menus of Deus Ex put a texture on the root window
+			// to make the game view darker (DeusExRootWindow.MaskBackground), so draw that texture on the full screen.
+			if (this == engine->dxRootWindow)
+			{
+				float scale = GetVirtualScale();
+				float realWidth = std::ceil(engine->viewport->ViewportWidth() / scale);
+				float realHeight = std::ceil(engine->viewport->ViewportHeight() / scale);
+				gc->DrawPattern(-UsedX, -UsedY, realWidth, realHeight, 0.0f, 0.0f, Background());
+			}
+			else
+			{
+				gc->DrawPattern(0.0f, 0.0f, Width(), Height(), 0.0f, 0.0f, Background());
+			}
 		}
 		// DrawDebugBox(gc);
 	}
