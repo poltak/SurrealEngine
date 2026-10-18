@@ -11,6 +11,8 @@ class VisibleFrame;
 // object as its render interface. The iterator holds up to 64 particles, and the renderer draws the
 // ParticleProxy sprite of the generator one time for each particle.
 // It follows UParticleIterator in DeusEx.dll and the render iterator loop of the original renderer.
+// The same functions draw the beams of a LaserEmitter (laser beams and electric arcs). Its render interface is a
+// LaserIterator, and the renderer draws the LaserProxy mesh at each segment of a beam (ULaserIterator in DeusEx.dll).
 class DeusExParticles
 {
 public:
