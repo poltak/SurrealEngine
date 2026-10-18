@@ -606,6 +606,19 @@ void USurrealAudioDevice::AddStats(Array<std::string>& lines)
 	}
 }
 
+Array<std::string> USurrealAudioDevice::DescribeSounds()
+{
+	Array<std::string> lines;
+	for (const PlayingSound& sound : PlayingSounds)
+	{
+		if (sound.Id == 0 || !sound.Sound)
+			continue;
+		std::string actor = sound.Actor ? sound.Actor->Name.ToString() : std::string("None");
+		lines.push_back(actor + " " + sound.Sound->Name.ToString() + " slot=" + std::to_string((sound.Id & 14) / 2));
+	}
+	return lines;
+}
+
 float USurrealAudioDevice::SoundPriority(UViewport* Viewport, vec3 Location, float Volume, float Radius)
 {
 	UActor* target = Viewport->Actor();

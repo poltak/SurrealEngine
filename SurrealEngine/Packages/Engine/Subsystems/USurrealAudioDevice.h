@@ -71,6 +71,9 @@ public:
 	void BreakpointTriggered();
 	void AddStats(Array<std::string>& lines);
 
+	// For the test harness: one line for each sound on the play list, with its actor, its sound and its slot
+	Array<std::string> DescribeSounds();
+
 	AudioDevice* GetDevice() { return m_Device.get(); }
 
 private:

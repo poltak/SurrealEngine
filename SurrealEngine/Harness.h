@@ -49,6 +49,7 @@ class UActor;
 //                                   CLASS can also be the name of one actor.
 //   visible                         log what the last frame showed: the count of frames (the view of the camera, and
 //                                   each sky and mirror in it), of level surfaces and of actors
+//   sounds                          log the sounds that play: actor, sound and slot (5 is the talk slot of a speech)
 //   showtex PKG.NAME [PKG.NAME ...] draw these textures in a grid over the picture in each frame (no names: stop)
 //   windows                         log the tree of the visible Deus Ex interface windows with place, size,
 //                                   the start of the text of a text window, the row count of a list and the

@@ -19,6 +19,7 @@
 #include "Packages/Extension/Windows/UListWindow.h"
 #include "Packages/Engine/Actors/Pawn/UPlayerPawn.h"
 #include "Packages/Engine/Actors/Brush/UMover.h"
+#include "Packages/Engine/Subsystems/USurrealAudioDevice.h"
 #include "Packages/Engine/Resources/Level/UModel.h"
 #include "Packages/Engine/Resources/Level/UPolys.h"
 #include "Packages/Core/UClass.h"
@@ -966,6 +967,14 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 			count++;
 		}
 		LogMessage("Harness: inv count=" + std::to_string(count) + list);
+	}
+	else if (e.Command == "sounds")
+	{
+		// sounds: log the sounds that play, with the actor, the sound and the slot (5 is the talk slot of a speech)
+		Array<std::string> lines = engine->audiodev ? engine->audiodev->DescribeSounds() : Array<std::string>();
+		LogMessage("Harness: sounds count=" + std::to_string(lines.size()));
+		for (const std::string& line : lines)
+			LogMessage("Harness: sound " + line);
 	}
 	else if (e.Command == "shot")
 	{
