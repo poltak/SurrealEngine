@@ -329,7 +329,16 @@ void UActor::TickScriptEvents(float elapsed)
 
 bool UActor::Move(const vec3& delta)
 {
-	return TryMove(delta).Fraction == 1.0f;
+	CollisionHit hit = TryMove(delta);
+
+	// As ULevel::MoveActor in the Engine.dll of Deus Ex (build 1112fm): the result is true when the actor moved some
+	// part of the distance (the hit time is more than 0). The crouch of the player shrinks the collision cylinder and
+	// moves its center down until the feet touch the floor. The collision code gives that move a fraction a little
+	// below 1, so a test for the full distance made the crouch fail with the player 27 units down in the floor.
+	if (engine->LaunchInfo.IsDeusEx())
+		return hit.Fraction > 0.0f;
+
+	return hit.Fraction == 1.0f;
 }
 
 bool UActor::MoveSmooth(const vec3& delta)
