@@ -181,6 +181,7 @@ public:
     std::map<InputKey, bool> keyState;
     bool cursorWanted = false; // the program asked for the lock
     bool cursorLocked = false; // the lock is on: the window has the key focus
+    bool ownCursor = false;
     bool resizable = true;
     NSSize minContentSize = NSMakeSize(0.0, 0.0);
     NSSize maxContentSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
@@ -304,6 +305,28 @@ void CocoaDisplayWindowImpl::stopDisplayLink()
                                                userInfo:nil];
     [self addTrackingArea:trackingArea];
     [super updateTrackingAreas];
+}
+
+// A cursor with no visible pixels, for the content of a window where the program draws a cursor of its own
+static NSCursor* BlankCursor()
+{
+    static NSCursor* cursor = nil;
+    if (!cursor)
+    {
+        NSBitmapImageRep* rep = [[NSBitmapImageRep alloc] initWithBitmapDataPlanes:nullptr pixelsWide:16 pixelsHigh:16 bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO colorSpaceName:NSDeviceRGBColorSpace bytesPerRow:0 bitsPerPixel:0];
+        memset([rep bitmapData], 0, [rep bytesPerRow] * 16);
+        NSImage* image = [[NSImage alloc] initWithSize:NSMakeSize(16, 16)];
+        [image addRepresentation:rep];
+        cursor = [[NSCursor alloc] initWithImage:image hotSpot:NSMakePoint(0, 0)];
+    }
+    return cursor;
+}
+
+- (void)resetCursorRects
+{
+    [super resetCursorRects];
+    if (impl && impl->ownCursor)
+        [self addCursorRect:[self visibleRect] cursor:BlankCursor()];
 }
 
 - (CALayer *)makeBackingLayer
@@ -1145,6 +1168,39 @@ void CocoaDisplayWindow::UnlockCursor()
 {
     impl->cursorWanted = false;
     impl->applyCursorLock();
+}
+
+void CocoaDisplayWindow::SetOwnCursor(bool enable)
+{
+    if (impl->ownCursor == enable || !impl->window)
+        return;
+    impl->ownCursor = enable;
+
+    NSView* view = [impl->window contentView];
+    [impl->window invalidateCursorRectsForView:view];
+
+    // The cursor rectangles take effect at the next movement of the mouse. Set the cursor now if it is over the content.
+    NSPoint p = [view convertPoint:[impl->window mouseLocationOutsideOfEventStream] fromView:nil];
+    if ([impl->window isKeyWindow] && NSPointInRect(p, [view bounds]))
+        [(enable ? BlankCursor() : [NSCursor arrowCursor]) set];
+}
+
+void CocoaDisplayWindow::SetCursorPosition(double x, double y)
+{
+    // Never move the mouse of the person while the program is in the background
+    if (!impl->window || ![impl->window isKeyWindow] || ![NSApp isActive])
+        return;
+
+    NSView* view = [impl->window contentView];
+    NSPoint inWindow = [view convertPoint:NSMakePoint(x, view.bounds.size.height - y) toView:nil];
+    NSPoint onScreen = [impl->window convertPointToScreen:inWindow];
+
+    // Core Graphics has its origin at the top left corner of the main display
+    CGFloat mainHeight = [[NSScreen screens] firstObject].frame.size.height;
+    CGWarpMouseCursorPosition(CGPointMake(onScreen.x, mainHeight - onScreen.y));
+
+    // A warp stops the mouse for a short time. A new association ends that pause.
+    CGAssociateMouseAndMouseCursorPosition(!impl->cursorLocked);
 }
 
 void CocoaDisplayWindow::CaptureMouse()

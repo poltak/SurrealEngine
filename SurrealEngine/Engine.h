@@ -200,6 +200,9 @@ public:
 	int MouseMoveX = 0;
 	int MouseMoveY = 0;
 
+	// Deus Ex on macOS: the mouse of the computer is free while a screen of the game is open (see TickWindow)
+	bool menuMouseFree = false;
+
 	float CalcTimeElapsed();
 
 	UActor* CameraActor = nullptr;

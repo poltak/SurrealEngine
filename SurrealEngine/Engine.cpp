@@ -1940,10 +1940,30 @@ void Engine::TickWindow(float timeElapsed)
 {
 	if (window && engine->LaunchInfo.ue1Version > 219)
 	{
-		if (viewport->bShowWindowsMouse() && viewport->bWindowsMouseAvailable())
+		// Deus Ex on macOS: while a screen of the game is open, the mouse of the computer is free and the cursor of the
+		// game follows it. So the person can reach the title bar, the green button and the menu bar, also in full screen.
+		// The game draws its own cursor, so the arrow of macOS shows only outside the picture of the game.
+		bool freeMouse = false;
+#ifdef __APPLE__
+		freeMouse = dxRootWindow && dxRootWindow->IsModalOpen() && !HarnessNoGrab();
+#endif
+		if ((viewport->bShowWindowsMouse() && viewport->bWindowsMouseAvailable()) || freeMouse)
 			window->UnlockCursor();
 		else if (!HarnessNoGrab())
 			window->LockCursor();
+
+		if (freeMouse != menuMouseFree)
+		{
+			menuMouseFree = freeMouse;
+			window->SetOwnCursor(freeMouse);
+
+			// Put the mouse of the computer on the cursor of the game, so that the cursor does not jump
+			if (freeMouse)
+			{
+				Point pos = dxRootWindow->GetCursorWindowPoint();
+				window->SetCursorPosition(pos.x, pos.y);
+			}
+		}
 	}
 
 	InputEvent(IK_MouseX, IST_Axis, 0);
@@ -1983,8 +2003,13 @@ void Engine::OnWindowMouseMove(const Point& pos)
 	if (playingAvi)
 		return;
 
-	if (engine->dxRootWindow && engine->dxRootWindow->OnWindowMouseMove(pos))
-		return;
+	if (engine->dxRootWindow)
+	{
+		if (menuMouseFree)
+			engine->dxRootWindow->SetCursorFromWindow(pos);
+		if (engine->dxRootWindow->OnWindowMouseMove(pos))
+			return;
+	}
 
 	if (engine->LaunchInfo.ue1Version > 219)
 	{

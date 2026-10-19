@@ -67,6 +67,8 @@ public:
 
     void InjectNativeKeyEvent(int type, int keyCode, unsigned int modifierFlags, const std::string& characters) override;
     void InjectNativeMouseEvent(int type, double x, double y) override;
+    void SetOwnCursor(bool enable) override;
+    void SetCursorPosition(double x, double y) override;
 
     void* GetNativeHandle() override;
 

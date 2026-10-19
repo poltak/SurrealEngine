@@ -380,6 +380,15 @@ public:
 	// 2 = mouse move. Only the macOS window has it.
 	virtual void InjectNativeMouseEvent(int type, double x, double y) { }
 
+	// The program draws a cursor of its own over the content of the window, for example on the menus of a game, while
+	// the cursor of the system is free. The cursor of the system then does not show over the content, but it shows on
+	// the title bar and outside the window. Only the macOS window has it.
+	virtual void SetOwnCursor(bool enable) { }
+
+	// Put the cursor of the system at (x, y) of this window, in points from the top left corner of the content.
+	// Nothing happens while the window is not the key window. Only the macOS window has it.
+	virtual void SetCursorPosition(double x, double y) { }
+
 	virtual void* GetNativeHandle() = 0;
 
 	virtual std::vector<std::string> GetVulkanInstanceExtensions() = 0;

@@ -488,6 +488,24 @@ bool URootWindow::OnWindowRawMouseMove(int dx, int dy)
 	return MoveCursor(dx * mouseSpeed, dy * mouseSpeed);
 }
 
+// The window shows the root window with the scale of GetVirtualScale, in the middle of the picture (UsedX, UsedY)
+void URootWindow::SetCursorFromWindow(const Point& pos)
+{
+	if (!IsModalOpen() || bMouseMoveLocked())
+		return;
+
+	float scale = GetVirtualScale();
+	double dpiScale = engine->window->GetDpiScale();
+	SetRootCursorPos((float)(pos.x * dpiScale) / scale - UsedX, (float)(pos.y * dpiScale) / scale - UsedY);
+}
+
+Point URootWindow::GetCursorWindowPoint()
+{
+	float scale = GetVirtualScale();
+	double dpiScale = engine->window->GetDpiScale();
+	return Point((MouseX() + UsedX) * scale / dpiScale, (MouseY() + UsedY) * scale / dpiScale);
+}
+
 bool URootWindow::MoveCursor(float dx, float dy)
 {
 	// As XRootWindow::SetMouseDelta and HandleMouse: the cursor moves while the window system has the mouse, also

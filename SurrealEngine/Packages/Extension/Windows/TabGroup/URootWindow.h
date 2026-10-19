@@ -43,6 +43,10 @@ public:
 
 	// Move the cursor by a distance in interface units, as a relative mouse movement does. A controller stick uses this.
 	bool MoveCursor(float dx, float dy);
+
+	// The cursor and a place of the game window, in points from the top left corner of the window
+	void SetCursorFromWindow(const Point& pos);
+	Point GetCursorWindowPoint();
 	bool OnWindowKeyChar(std::string chars);
 	bool OnWindowKeyDown(EInputKey key);
 	bool OnWindowKeyUp(EInputKey key);
