@@ -95,7 +95,9 @@ std::string USurrealClient::GetPropertyAsString(const NameString& propertyName) 
 
 void USurrealClient::SetPropertyFromString(const NameString& propertyName, const std::string& value)
 {
-	if (propertyName == "WindowedViewportX")
+	if (propertyName == "StartupFullscreen")
+		StartupFullscreen = IniPropertyConverter<bool>::FromString(value);
+	else if (propertyName == "WindowedViewportX")
 		WindowedViewportX = IniPropertyConverter<int>::FromString(value);
 	else if (propertyName == "WindowedViewportY")
 		WindowedViewportY = IniPropertyConverter<int>::FromString(value);

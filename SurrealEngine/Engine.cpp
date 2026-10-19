@@ -355,6 +355,12 @@ void Engine::Run()
 	LogMessage("Shutting down...");
 	window->UnlockCursor();
 
+	// Keep the full screen state for the next start. The player can change it with the green button of the window,
+	// the View menu and Control-Command-F, and not only with the setting of the game.
+	int harnessWidth = 0, harnessHeight = 0;
+	if (LaunchInfo.ue1Version > 219 && !Harness::Get().GetWindowSize(harnessWidth, harnessHeight))
+		client->SetPropertyFromString("StartupFullscreen", window->IsFullscreen() ? "True" : "False");
+
 	LogMessage("Saving configurations...");
 	packages->SetIniValue("System", "Engine.SurrealWindowSystem", "WindowSystem", windowingSystemName);
 	packages->SaveAllIniFiles();
