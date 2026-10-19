@@ -40,6 +40,9 @@ public:
 	bool OnWindowMouseUp(const Point& pos, EInputKey key);
 	bool OnWindowMouseWheel(const Point& pos, EInputKey key);
 	bool OnWindowRawMouseMove(int dx, int dy);
+
+	// Move the cursor by a distance in interface units, as a relative mouse movement does. A controller stick uses this.
+	bool MoveCursor(float dx, float dy);
 	bool OnWindowKeyChar(std::string chars);
 	bool OnWindowKeyDown(EInputKey key);
 	bool OnWindowKeyUp(EInputKey key);

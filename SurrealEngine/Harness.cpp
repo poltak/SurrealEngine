@@ -270,6 +270,32 @@ static Point ParsePoint(Engine* engine, const std::string& args)
 	return Point(fx * engine->window->GetPixelWidth() / scale, fy * engine->window->GetPixelHeight() / scale);
 }
 
+bool Harness::GetFakeGamepad(GamepadState& state) const
+{
+	if (!initialized || events.empty())
+		return false;
+	state = fakePad;
+	state.Connected = fakePadUsed;
+	state.Name = "test controller";
+	return true;
+}
+
+static int ParsePadButton(const std::string& name)
+{
+	static const std::map<std::string, GamepadButton> names =
+	{
+		{ "a", GamepadButton::A }, { "b", GamepadButton::B }, { "x", GamepadButton::X }, { "y", GamepadButton::Y },
+		{ "lb", GamepadButton::LeftShoulder }, { "rb", GamepadButton::RightShoulder },
+		{ "back", GamepadButton::Back }, { "start", GamepadButton::Start },
+		{ "l3", GamepadButton::LeftThumb }, { "r3", GamepadButton::RightThumb },
+		{ "lt", GamepadButton::LeftTrigger }, { "rt", GamepadButton::RightTrigger },
+		{ "up", GamepadButton::DPadUp }, { "down", GamepadButton::DPadDown },
+		{ "left", GamepadButton::DPadLeft }, { "right", GamepadButton::DPadRight }
+	};
+	auto it = names.find(name);
+	return it != names.end() ? (int)it->second : -1;
+}
+
 bool Harness::DropRealInput(const char* what)
 {
 	if (!initialized || events.empty() || injecting)
@@ -336,6 +362,45 @@ void Harness::RunEvent(Engine* engine, const Event& e)
 	{
 		engine->OnWindowKeyDown(ParseKey(e.Args));
 		events.insert(events.begin() + nextEvent, Event{ e.Time + 0.08, "keyup", e.Args });
+	}
+	else if (e.Command == "pad")
+	{
+		std::istringstream args(e.Args);
+		std::string action, what;
+		args >> action >> what;
+		fakePadUsed = true;
+		if (action == "stick")
+		{
+			float x = 0.0f, y = 0.0f;
+			args >> x >> y;
+			(what == "left" ? fakePad.LeftX : fakePad.RightX) = x;
+			(what == "left" ? fakePad.LeftY : fakePad.RightY) = y;
+		}
+		else if (action == "trigger")
+		{
+			float value = 0.0f;
+			args >> value;
+			(what == "left" ? fakePad.LeftTrigger : fakePad.RightTrigger) = value;
+		}
+		else if (action == "reset")
+		{
+			fakePad = {};
+		}
+		else
+		{
+			int button = ParsePadButton(what);
+			bool down = action != "up";
+			if (button < 0)
+				LogMessage("Harness: unknown controller button: " + what);
+			else if (button == (int)GamepadButton::LeftTrigger)
+				fakePad.LeftTrigger = down ? 1.0f : 0.0f;
+			else if (button == (int)GamepadButton::RightTrigger)
+				fakePad.RightTrigger = down ? 1.0f : 0.0f;
+			else
+				fakePad.Buttons[button] = down;
+			if (button >= 0 && action == "tap")
+				events.insert(events.begin() + nextEvent, Event{ e.Time + 0.08, "pad", "up " + what });
+		}
 	}
 	else if (e.Command == "char")
 	{

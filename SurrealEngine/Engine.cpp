@@ -5,6 +5,7 @@
 #include "Utils/CommandLine.h"
 #include "Harness.h"
 #include "DevLoader.h"
+#include "Input/GamepadInput.h"
 #include "Utils/File.h"
 #include "Utils/StrTools.h"
 #include "Utils/SHA1Sum.h"
@@ -1799,10 +1800,16 @@ void Engine::ResetKeyboard()
 
 void Engine::LoadKeybindings()
 {
+	GamepadInput::AddDefaultBindings(this);
+
 	for (int i = 0; i < 256; i++)
 	{
 		std::string keyname = keynames[i];
 		keybindings[keyname] = GetInputIniValue(keyname);
+
+		// The second layer of a controller, for a button that the player presses while LB is down
+		if (GamepadInput::IsLayerKey((EInputKey)i))
+			keybindings["Layer" + keyname] = GetInputIniValue("Layer" + keyname);
 	}
 
 	for (int i = 0; i < 40; i++)
@@ -1836,7 +1843,7 @@ void Engine::UpdateInput(float timeElapsed)
 	if (timeElapsed <= 0.0f)
 		return;
 
-	TickWindow();
+	TickWindow(timeElapsed);
 	if (tickDebugger)
 		tickDebugger();
 
@@ -1929,7 +1936,7 @@ void Engine::CloseWindow()
 	window.reset();
 }
 
-void Engine::TickWindow()
+void Engine::TickWindow(float timeElapsed)
 {
 	if (window && engine->LaunchInfo.ue1Version > 219)
 	{
@@ -1957,6 +1964,11 @@ void Engine::TickWindow()
 		if (dy)
 			InputEvent(IK_MouseY, IST_Axis, (float)-dy);
 	}
+
+	// As UWindowsViewport::UpdateInput in WinDrv.dll: the joystick comes after the messages of the window
+	if (!gamepad)
+		gamepad = std::make_unique<GamepadInput>();
+	gamepad->Tick(this, timeElapsed);
 }
 
 void Engine::OnWindowPaint()
@@ -2171,7 +2183,7 @@ void Engine::Key(std::string key)
 	}
 }
 
-void Engine::InputEvent(EInputKey key, EInputType type, float delta)
+void Engine::InputEvent(EInputKey key, EInputType type, float delta, const std::string* binding)
 {
 	if (Frame::RunState != FrameRunState::Running || playingAvi)
 		return;
@@ -2200,12 +2212,17 @@ void Engine::InputEvent(EInputKey key, EInputType type, float delta)
 	{
 		if ((type == EInputType::IST_Press || type == EInputType::IST_Axis) && key >= 0 && key < 256)
 		{
+			// The original adds Delta * Speed to an axis for a held key and scales all axes by 20 / DeltaSeconds
+			// (UInput::Exec and UInput::ReadInput in Engine.dll), so a held key gives 20 * Speed.
+			// A stick at its full way gives the same, with the part of the way between the two ends.
 			if (type == EInputType::IST_Press)
 				delta = 20.0f;
+			else if (key == IK_JoyX || key == IK_JoyY || key == IK_JoyZ || key == IK_JoyR || key == IK_JoyU || key == IK_JoyV)
+				delta *= 20.0f;
 			else
 				delta *= 16.0f;
 
-			for (const std::string& command : GetSubcommands(keybindings[keynames[key]]))
+			for (const std::string& command : GetSubcommands(binding ? *binding : keybindings[keynames[key]]))
 			{
 				auto it = inputAliases.find(command);
 				if (it != inputAliases.end())
@@ -2401,7 +2418,7 @@ void Engine::InputCommand(const std::string& commands, EInputKey key, float delt
 			for (char& c : command) c = std::tolower(c);
 
 			// As UInput::ExecInputCommands and UInput::Exec in Engine.dll: an axis event moves the axes of the binding and
-			// runs no other command
+			// runs no other command. A stick out of the middle gives an axis event in each frame.
 			if (type == EInputType::IST_Axis && command != "axis")
 				continue;
 

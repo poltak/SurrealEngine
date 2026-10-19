@@ -59,6 +59,7 @@ class UDXSaveInfo;
 class UDeusExLevelInfo;
 class URootWindow;
 class UGC;
+class GamepadInput;
 struct TextureInfo;
 struct SceneNode;
 struct SurfaceFacet;
@@ -118,10 +119,11 @@ public:
 
 	void OpenWindow();
 	void CloseWindow();
-	void TickWindow();
+	void TickWindow(float timeElapsed);
 
 	void Key(std::string key);
-	void InputEvent(EInputKey key, EInputType type, float delta = 0.0f);
+	// binding: use this command in the place of the binding of the key (the second layer of a controller)
+	void InputEvent(EInputKey key, EInputType type, float delta = 0.0f, const std::string* binding = nullptr);
 	void ReleaseGameInput();
 
 	void OnWindowPaint() override;
@@ -230,8 +232,11 @@ public:
 	bool gameKeyDown[256] = {};
 	std::map<std::string, EInputKey> activeInputButtons;
 
-	// The value of an axis from each key that moves it. As UInput::Exec in Engine.dll, the values of the keys add up.
+	// The value of an axis from each key that moves it. As UInput::Exec in Engine.dll, the values of the keys add up,
+	// so a stick and a movement key can move the player at the same time.
 	std::map<std::pair<std::string, EInputKey>, float> activeInputAxes;
+
+	std::unique_ptr<GamepadInput> gamepad;
 
 	std::function<void()> tickDebugger;
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Input/Gamepad.h"
 #include <string>
 #include <vector>
 
@@ -38,6 +39,12 @@ class UActor;
 //   move X Y | click X Y | rclick X Y | mousedown X Y | mouseup X Y
 //   wheelup X Y | wheeldown X Y     one step of the mouse wheel with the mouse at that place
 //   raw DX DY                       relative mouse movement
+//   pad down|up|tap BUTTON          a button of the test controller: a b x y lb rb back start l3 r3 lt rt up down
+//                                   left right (the last four are the D-pad). The real controller has no effect
+//                                   on a run with a script.
+//   pad stick left|right X Y        put a stick of the test controller at X Y (-1..1, right and up are positive)
+//   pad trigger left|right VALUE    put a trigger of the test controller at VALUE (0..1)
+//   pad reset                       let go of all buttons, sticks and triggers of the test controller
 //   exec COMMAND                    console command
 //   shot NAME                       write one frame now as NAME.bmp
 //   teleportto NAME [DISTANCE]      put the player near the actor with that name (or the nearest of that class) and aim at it
@@ -85,6 +92,10 @@ public:
 	// True for a window event that comes from the real keyboard or mouse while a script drives the game.
 	// The engine drops such events, so a person who works on the same computer cannot change a test.
 	bool DropRealInput(const char* what);
+
+	// True while a script drives the game. The state is then the test controller of the "pad" commands, and the
+	// engine does not read the real controller.
+	bool GetFakeGamepad(GamepadState& state) const;
 
 	// The folder of --shots, empty if the run writes no pictures. The loader window writes its pictures there also.
 	const std::string& GetShotFolder() const { return shotDir; }
@@ -135,6 +146,8 @@ private:
 	double nextWinSizeCheck = 1.5; // not in the first frames: the window manager can resize the new window at that time
 	std::vector<Event> events;
 	size_t nextEvent = 0;
+	GamepadState fakePad;
+	bool fakePadUsed = false;
 
 	// State of the "perf" command: the values at the last report
 	uint64_t perfFrames = 0;

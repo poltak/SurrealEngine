@@ -50,6 +50,10 @@ set(SURREALCOMMON_SOURCES
 	SurrealEngine/LauncherSettings.h
 	SurrealEngine/GameWindow.cpp
 	SurrealEngine/GameWindow.h
+	SurrealEngine/Input/Gamepad.h
+	SurrealEngine/Input/GamepadInput.cpp
+	SurrealEngine/Input/GamepadInput.h
+	SurrealEngine/Input/GamepadStub.cpp
 	SurrealEngine/UE1GameDatabase.h
 	SurrealEngine/UE1GameDatabase.cpp
 	SurrealEngine/Utils/CommandLine.cpp
@@ -1031,6 +1035,7 @@ source_group("SurrealEngine\\RenderDevice/Vulkan" REGULAR_EXPRESSION "${CMAKE_CU
 source_group("SurrealEngine\\RenderDevice/OpenGL" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/RenderDevice/OpenGL/.+")
 source_group("SurrealEngine\\RenderDevice/OpenGL/gl_load" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/RenderDevice/OpenGL/gl_load/.+")
 source_group("SurrealEngine\\RenderDevice/D3D11" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/RenderDevice/D3D11/.+")
+source_group("SurrealEngine\\Input" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/Input/.+")
 source_group("SurrealEngine\\Render" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/Render/.+")
 source_group("SurrealEngine\\UI" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/.+")
 source_group("SurrealEngine\\UI\\ErrorWindow" REGULAR_EXPRESSION "${CMAKE_CURRENT_SOURCE_DIR}/SurrealEngine/UI/ErrorWindow/.+")
@@ -1127,9 +1132,10 @@ if(WIN32)
 	set(THIRDPARTY_SOURCES ${THIRDPARTY_SOURCES} ${THIRDPARTY_WIN32_SOURCES})
 	add_definitions(-DUNICODE -D_UNICODE -D_CRT_SECURE_NO_WARNINGS)
 elseif(APPLE)
-	set(SURREALCOMMON_SOURCES ${SURREALCOMMON_SOURCES} ${SURREALCOMMON_UNIX_SOURCES})
+	set(SURREALCOMMON_SOURCES ${SURREALCOMMON_SOURCES} ${SURREALCOMMON_UNIX_SOURCES} SurrealEngine/Input/GamepadMac.mm)
+	set_source_files_properties(SurrealEngine/Input/GamepadMac.mm PROPERTIES COMPILE_FLAGS "-x objective-c++ -fobjc-arc" SKIP_PRECOMPILE_HEADERS ON)
 	set(THIRDPARTY_SOURCES ${THIRDPARTY_SOURCES} ${THIRDPARTY_UNIX_SOURCES})
-	set(SURREALCOMMON_LIBS ${SURREALCOMMON_LIBS} ${CMAKE_DL_LIBS} OpenAL::OpenAL)
+	set(SURREALCOMMON_LIBS ${SURREALCOMMON_LIBS} ${CMAKE_DL_LIBS} OpenAL::OpenAL "-framework GameController" "-framework Foundation")
 	add_definitions(-DUNIX -D_UNIX)
 	add_link_options(-pthread)
 elseif(HAIKU)

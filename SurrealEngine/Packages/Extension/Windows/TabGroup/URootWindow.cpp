@@ -484,16 +484,19 @@ bool URootWindow::OnWindowMouseWheel(const Point& pos, EInputKey key)
 
 bool URootWindow::OnWindowRawMouseMove(int dx, int dy)
 {
+	float mouseSpeed = 1.0f / GetVirtualScale();
+	return MoveCursor(dx * mouseSpeed, dy * mouseSpeed);
+}
+
+bool URootWindow::MoveCursor(float dx, float dy)
+{
 	// As XRootWindow::SetMouseDelta and HandleMouse: the cursor moves while the window system has the mouse, also
 	// when the cursor does not show. It does not move while the script has the movement locked.
 	if (!IsModalOpen())
 		return false;
 
 	if (!bMouseMoveLocked())
-	{
-		float mouseSpeed = 1.0f / GetVirtualScale();
-		SetRootCursorPos(MouseX() + dx * mouseSpeed, MouseY() + dy * mouseSpeed);
-	}
+		SetRootCursorPos(MouseX() + dx, MouseY() + dy);
 	return true;
 }
 
