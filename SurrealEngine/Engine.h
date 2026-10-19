@@ -100,7 +100,7 @@ public:
 	std::string ConsoleCommand(UObject* context, const std::string& command, BitfieldBool& found);
 
 	void UpdateInput(float timeElapsed);
-	void InputCommand(const std::string& command, EInputKey key, int delta);
+	void InputCommand(const std::string& command, EInputKey key, float delta, EInputType type = IST_Press);
 
 	void LockCursor();
 	void UnlockCursor();
@@ -121,7 +121,7 @@ public:
 	void TickWindow();
 
 	void Key(std::string key);
-	void InputEvent(EInputKey key, EInputType type, int delta = 0);
+	void InputEvent(EInputKey key, EInputType type, float delta = 0.0f);
 	void ReleaseGameInput();
 
 	void OnWindowPaint() override;
@@ -227,15 +227,11 @@ public:
 	std::map<std::string, std::string> inputAliases;
 	static const char* keynames[256];
 
-	struct ActiveInputAxis
-	{
-		float Value;
-		EInputKey Key;
-	};
-
 	bool gameKeyDown[256] = {};
 	std::map<std::string, EInputKey> activeInputButtons;
-	std::map<std::string, ActiveInputAxis> activeInputAxes;
+
+	// The value of an axis from each key that moves it. As UInput::Exec in Engine.dll, the values of the keys add up.
+	std::map<std::pair<std::string, EInputKey>, float> activeInputAxes;
 
 	std::function<void()> tickDebugger;
 

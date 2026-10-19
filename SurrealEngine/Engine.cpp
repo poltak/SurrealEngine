@@ -1845,17 +1845,25 @@ void Engine::UpdateInput(float timeElapsed)
 
 	for (auto& it : activeInputButtons)
 		viewport->Actor()->SetBool(it.first, true);
+
+	// The names of properties have no case, so "aStrafe" and "astrafe" are the same axis
+	std::map<std::string, std::pair<std::string, float>> axisValues;
 	for (auto& it : activeInputAxes)
 	{
-		if (it.first == "aMouseX" || it.first == "aMouseY")
-		{
-			viewport->Actor()->SetFloat(it.first, it.second.Value / (timeElapsed * 150.0f));
-		}
-		else
-		{
-			viewport->Actor()->SetFloat(it.first, it.second.Value);
-		}
+		const std::string& name = it.first.first;
+		float value = it.second;
+		if (StrTools::equals_ignore_case(name, "aMouseX") || StrTools::equals_ignore_case(name, "aMouseY"))
+			value /= timeElapsed * 150.0f;
+
+		std::string key = name;
+		for (char& c : key)
+			c = (char)std::tolower((unsigned char)c);
+		auto& axis = axisValues[key];
+		axis.first = name;
+		axis.second += value;
 	}
+	for (auto& it : axisValues)
+		viewport->Actor()->SetFloat(it.second.first, it.second.second);
 }
 
 void Engine::OpenWindow()
@@ -1945,9 +1953,9 @@ void Engine::TickWindow()
 
 		// Send to input subsystem.
 		if (dx)
-			InputEvent(IK_MouseX, IST_Axis, dx);
+			InputEvent(IK_MouseX, IST_Axis, (float)dx);
 		if (dy)
-			InputEvent(IK_MouseY, IST_Axis, -dy);
+			InputEvent(IK_MouseY, IST_Axis, (float)-dy);
 	}
 }
 
@@ -2163,12 +2171,12 @@ void Engine::Key(std::string key)
 	}
 }
 
-void Engine::InputEvent(EInputKey key, EInputType type, int delta)
+void Engine::InputEvent(EInputKey key, EInputType type, float delta)
 {
 	if (Frame::RunState != FrameRunState::Running || playingAvi)
 		return;
 
-	bool handled = CallEvent(console, EventName::KeyEvent, { ExpressionValue::ByteValue(key), ExpressionValue::ByteValue(type), ExpressionValue::FloatValue((float)delta) }).ToBool();
+	bool handled = CallEvent(console, EventName::KeyEvent, { ExpressionValue::ByteValue(key), ExpressionValue::ByteValue(type), ExpressionValue::FloatValue(delta) }).ToBool();
 
 	// As XInputExt::Process in Extension.dll: a key that is down does not start its command again when the system
 	// repeats the key, and a key that is not down gives no release
@@ -2193,20 +2201,20 @@ void Engine::InputEvent(EInputKey key, EInputType type, int delta)
 		if ((type == EInputType::IST_Press || type == EInputType::IST_Axis) && key >= 0 && key < 256)
 		{
 			if (type == EInputType::IST_Press)
-				delta = 20;
+				delta = 20.0f;
 			else
-				delta *= 16;
+				delta *= 16.0f;
 
 			for (const std::string& command : GetSubcommands(keybindings[keynames[key]]))
 			{
 				auto it = inputAliases.find(command);
 				if (it != inputAliases.end())
 				{
-					InputCommand(it->second, key, delta);
+					InputCommand(it->second, key, delta, type);
 				}
 				else
 				{
-					InputCommand(command, key, delta);
+					InputCommand(command, key, delta, type);
 				}
 			}
 		}
@@ -2227,9 +2235,9 @@ void Engine::InputEvent(EInputKey key, EInputType type, int delta)
 
 			for (auto it = activeInputAxes.begin(); it != activeInputAxes.end();)
 			{
-				if (it->second.Key == key)
+				if (it->first.second == key)
 				{
-					viewport->Actor()->SetFloat(it->first, 0.0f);
+					viewport->Actor()->SetFloat(it->first.first, 0.0f);
 					it = activeInputAxes.erase(it);
 				}
 				else
@@ -2254,7 +2262,7 @@ void Engine::ReleaseGameInput()
 		for (auto& it : activeInputButtons)
 			viewport->Actor()->SetBool(it.first, false);
 		for (auto& it : activeInputAxes)
-			viewport->Actor()->SetFloat(it.first, 0.0f);
+			viewport->Actor()->SetFloat(it.first.first, 0.0f);
 	}
 	activeInputButtons.clear();
 	activeInputAxes.clear();
@@ -2382,7 +2390,7 @@ bool Engine::ExecCommand(const Array<std::string>& args)
 	return false;
 }
 
-void Engine::InputCommand(const std::string& commands, EInputKey key, int delta)
+void Engine::InputCommand(const std::string& commands, EInputKey key, float delta, EInputType type)
 {
 	for (const std::string& commandline : GetSubcommands(commands))
 	{
@@ -2392,16 +2400,26 @@ void Engine::InputCommand(const std::string& commands, EInputKey key, int delta)
 			std::string command = args[0];
 			for (char& c : command) c = std::tolower(c);
 
+			// As UInput::ExecInputCommands and UInput::Exec in Engine.dll: an axis event moves the axes of the binding and
+			// runs no other command
+			if (type == EInputType::IST_Axis && command != "axis")
+				continue;
+
 			if (command == "button" && args.size() == 2)
 			{
 				activeInputButtons[args[1]] = key;
 			}
-			else if (command == "axis" && args.size() == 3)
+			else if (command == "axis" && args.size() >= 2)
 			{
+				// As UInput::Exec: the speed is 1 when the command has no "Speed=". The joystick bindings of the
+				// Deus Ex ini write it in lower case ("Axis aBaseY speed=2").
 				float speed = 1.0f;
-				if (args[2].size() > 6 && args[2].substr(0, 6) == "Speed=")
-					speed = (float)std::atof(args[2].substr(6).c_str());
-				activeInputAxes[args[1]] = { speed * delta, key };
+				for (size_t i = 2; i < args.size(); i++)
+				{
+					if (args[i].size() > 6 && StrTools::equals_ignore_case(args[i].substr(0, 6), "Speed="))
+						speed = (float)std::atof(args[i].substr(6).c_str());
+				}
+				activeInputAxes[{ args[1], key }] = speed * delta;
 			}
 			else
 			{
