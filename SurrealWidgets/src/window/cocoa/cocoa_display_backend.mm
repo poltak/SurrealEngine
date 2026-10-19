@@ -125,6 +125,15 @@ CocoaDisplayBackend::CocoaDisplayBackend()
         // switcher, and macOS does not make it the active program at its start.
         [NSApp setActivationPolicy:CocoaHiddenWindows() ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];
         CreateMainMenu();
+
+        // A test window is hidden, and macOS slows down a program that the person cannot see (App Nap). A test asks
+        // for the full speed for all of its run.
+        if (CocoaHiddenWindows())
+        {
+            static id<NSObject> activity = [[NSProcessInfo processInfo] beginActivityWithOptions:NSActivityUserInitiatedAllowingIdleSystemSleep | NSActivityLatencyCritical reason:@"Test run with a hidden window"];
+            (void)activity;
+        }
+
         [NSApp finishLaunching];
     }
     // else: Parent app is managing NSApp lifecycle, don't interfere
