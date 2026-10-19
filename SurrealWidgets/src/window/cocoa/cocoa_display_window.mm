@@ -179,7 +179,8 @@ public:
     NSBitmapImageRep* bitmapRep = nil;
     CGImageRef cgImage = nullptr;
     std::map<InputKey, bool> keyState;
-    bool cursorLocked = false;
+    bool cursorWanted = false; // the program asked for the lock
+    bool cursorLocked = false; // the lock is on: the window has the key focus
     bool resizable = true;
     NSSize minContentSize = NSMakeSize(0.0, 0.0);
     NSSize maxContentSize = NSMakeSize(CGFLOAT_MAX, CGFLOAT_MAX);
@@ -206,6 +207,7 @@ public:
     // Declare methods, but implement them outside the struct
     void initOpenGL(ZWidgetView* view);
     void updateDrawableSize(CGSize size);
+    void applyCursorLock();
 
     CVReturn displayLinkOutputCallback(CVDisplayLinkRef displayLink, const CVTimeStamp* inNow, const CVTimeStamp* inOutputTime, CVOptionFlags flagsIn, CVOptionFlags* flagsOut, void* displayLinkContext);
     void startDisplayLink();
@@ -637,6 +639,31 @@ void CocoaDisplayWindowImpl::stopDisplayLink()
     return self;
 }
 
+// The lock of the cursor follows the key focus, so a window in the background does not hold the mouse of the person
+- (void)windowDidBecomeKey:(NSNotification *)notification
+{
+    if (impl)
+        impl->applyCursorLock();
+}
+
+- (void)windowDidResignKey:(NSNotification *)notification
+{
+    if (impl)
+        impl->applyCursorLock();
+}
+
+// The close button and Quit in the menu ask the host, as the other window systems do. A game then stops and saves its
+// settings, and a dialog closes itself.
+- (BOOL)windowShouldClose:(NSWindow *)sender
+{
+    if (impl && impl->windowHost)
+    {
+        impl->windowHost->OnWindowClose();
+        return NO;
+    }
+    return YES;
+}
+
 - (void)windowDidResize:(NSNotification *)notification
 {
     // Throttle resize events to prevent excessive calls that can cause crashes
@@ -682,6 +709,19 @@ void CocoaDisplayWindowImpl::initOpenGL(ZWidgetView* view)
 #else
     renderAPI = RenderAPI::Bitmap; // Fallback if OpenGL not available
 #endif
+}
+
+void CocoaDisplayWindowImpl::applyCursorLock()
+{
+    bool lock = cursorWanted && window && [window isKeyWindow] && [NSApp isActive];
+    if (lock == cursorLocked)
+        return;
+    cursorLocked = lock;
+    CGAssociateMouseAndMouseCursorPosition(!lock);
+    if (lock)
+        [NSCursor hide];
+    else
+        [NSCursor unhide];
 }
 
 void CocoaDisplayWindowImpl::updateDrawableSize(CGSize size)
@@ -1097,22 +1137,14 @@ void CocoaDisplayWindow::UnlockKeyboard() {}
 
 void CocoaDisplayWindow::LockCursor()
 {
-    if (impl->window && !impl->cursorLocked)
-    {
-        impl->cursorLocked = true;
-        CGAssociateMouseAndMouseCursorPosition(false);
-        [NSCursor hide];
-    }
+    impl->cursorWanted = true;
+    impl->applyCursorLock();
 }
 
 void CocoaDisplayWindow::UnlockCursor()
 {
-    if (impl->window && impl->cursorLocked)
-    {
-        impl->cursorLocked = false;
-        CGAssociateMouseAndMouseCursorPosition(true);
-        [NSCursor unhide];
-    }
+    impl->cursorWanted = false;
+    impl->applyCursorLock();
 }
 
 void CocoaDisplayWindow::CaptureMouse()

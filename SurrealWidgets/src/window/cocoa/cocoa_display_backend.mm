@@ -41,6 +41,72 @@ struct CocoaTimerData
 }
 @end
 
+// Quit in the menu asks the window in front to close, so its host can stop the program in its usual way
+@interface ZWidgetMenuTarget : NSObject
+- (void)quit:(id)sender;
+@end
+
+@implementation ZWidgetMenuTarget
+- (void)quit:(id)sender
+{
+    NSWindow* window = [NSApp keyWindow] ? [NSApp keyWindow] : [NSApp mainWindow];
+    if (!window)
+    {
+        for (NSWindow* candidate in [NSApp windows])
+        {
+            if ([candidate isVisible] && ([candidate styleMask] & NSWindowStyleMaskClosable))
+            {
+                window = candidate;
+                break;
+            }
+        }
+    }
+    if (window)
+        [window performClose:sender];
+    else
+        [NSApp terminate:sender];
+}
+@end
+
+// The menu bar of a Mac program: Hide and Quit, Enter Full Screen (Control-Command-F, and Fn-F) and Minimize.
+// A program with no menu bar has no shortcut for these, and a game window that holds the mouse leaves no other way.
+static void CreateMainMenu()
+{
+    static ZWidgetMenuTarget* target = [[ZWidgetMenuTarget alloc] init];
+
+    NSString* name = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"CFBundleName"];
+    if (!name)
+        name = [[NSProcessInfo processInfo] processName];
+
+    NSMenu* mainMenu = [[NSMenu alloc] init];
+
+    NSMenu* appMenu = [[NSMenu alloc] init];
+    [appMenu addItemWithTitle:[@"Hide " stringByAppendingString:name] action:@selector(hide:) keyEquivalent:@"h"];
+    NSMenuItem* hideOthers = [appMenu addItemWithTitle:@"Hide Others" action:@selector(hideOtherApplications:) keyEquivalent:@"h"];
+    [hideOthers setKeyEquivalentModifierMask:NSEventModifierFlagOption | NSEventModifierFlagCommand];
+    [appMenu addItemWithTitle:@"Show All" action:@selector(unhideAllApplications:) keyEquivalent:@""];
+    [appMenu addItem:[NSMenuItem separatorItem]];
+    NSMenuItem* quit = [appMenu addItemWithTitle:[@"Quit " stringByAppendingString:name] action:@selector(quit:) keyEquivalent:@"q"];
+    [quit setTarget:target];
+    [[mainMenu addItemWithTitle:@"" action:nil keyEquivalent:@""] setSubmenu:appMenu];
+
+    NSMenu* viewMenu = [[NSMenu alloc] initWithTitle:@"View"];
+    NSMenuItem* fullscreen = [viewMenu addItemWithTitle:@"Enter Full Screen" action:@selector(toggleFullScreen:) keyEquivalent:@"f"];
+    [fullscreen setKeyEquivalentModifierMask:NSEventModifierFlagControl | NSEventModifierFlagCommand];
+    [[mainMenu addItemWithTitle:@"View" action:nil keyEquivalent:@""] setSubmenu:viewMenu];
+
+    NSMenu* windowMenu = [[NSMenu alloc] initWithTitle:@"Window"];
+    [windowMenu addItemWithTitle:@"Minimize" action:@selector(performMiniaturize:) keyEquivalent:@"m"];
+    [windowMenu addItemWithTitle:@"Zoom" action:@selector(performZoom:) keyEquivalent:@""];
+    [[mainMenu addItemWithTitle:@"Window" action:nil keyEquivalent:@""] setSubmenu:windowMenu];
+
+    [NSApp setMainMenu:mainMenu];
+    [NSApp setWindowsMenu:windowMenu];
+
+    // No tab bar items in the View menu
+    [NSWindow setAllowsAutomaticWindowTabbing:NO];
+}
+
 std::unique_ptr<DisplayBackend> DisplayBackend::TryCreateCocoa()
 {
     return std::make_unique<CocoaDisplayBackend>();
@@ -58,6 +124,7 @@ CocoaDisplayBackend::CocoaDisplayBackend()
         // A test with hidden windows is an accessory program: it has no icon in the Dock, it is not in the program
         // switcher, and macOS does not make it the active program at its start.
         [NSApp setActivationPolicy:CocoaHiddenWindows() ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];
+        CreateMainMenu();
         [NSApp finishLaunching];
     }
     // else: Parent app is managing NSApp lifecycle, don't interfere
