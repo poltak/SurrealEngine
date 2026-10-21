@@ -121,9 +121,11 @@ CocoaDisplayBackend::CocoaDisplayBackend()
     if ([NSApp delegate] == nil)
     {
         // We're the primary app - set activation policy for keyboard events.
-        // A test with hidden windows is an accessory program: it has no icon in the Dock, it is not in the program
-        // switcher, and macOS does not make it the active program at its start.
-        [NSApp setActivationPolicy:CocoaHiddenWindows() ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];
+        // A test with hidden windows is a prohibited program: it has no icon in the Dock, it is not in the program
+        // switcher, and macOS cannot make it the active program. An accessory program is not enough. When the app in
+        // front started the test (for example the terminal), macOS makes an accessory program active about 2 seconds
+        // after its start, and the person at the computer loses the focus.
+        [NSApp setActivationPolicy:CocoaHiddenWindows() ? NSApplicationActivationPolicyProhibited : NSApplicationActivationPolicyRegular];
         CreateMainMenu();
 
         // A test window is hidden, and macOS slows down a program that the person cannot see (App Nap). A test asks

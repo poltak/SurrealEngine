@@ -784,10 +784,10 @@ CVReturn CocoaDisplayWindowImpl::displayLinkOutputCallback(CVDisplayLinkRef disp
 }
 
 // A test runner sets SURREAL_HIDDEN_WINDOW so that the windows of a test do not get in the way of the person at the
-// computer. A window is then on the screen as usual for macOS, so the game draws into it and a test can send events
-// to it. But the window is fully transparent, the mouse goes through it to the windows below, and Mission Control
-// and the window cycle do not have it. The program has no icon in the Dock and does not become the active program
-// (see CocoaDisplayBackend).
+// computer. The program is then a prohibited program (see CocoaDisplayBackend): it has no icon in the Dock, it cannot
+// become the active program, and macOS does not show its windows (isVisible is false). The game still draws into a
+// window, and a test can send events to it. The window is also fully transparent, the mouse goes through it to the
+// windows below, and Mission Control and the window cycle do not have it.
 bool CocoaHiddenWindows()
 {
     static bool hidden = getenv("SURREAL_HIDDEN_WINDOW") != nullptr;
@@ -1481,10 +1481,12 @@ void CocoaDisplayWindow::InjectNativeMouseEvent(int type, double x, double y)
     NSPoint screenPoint = [impl->window convertPointToScreen:[view convertPoint:viewPoint toView:nil]];
 
     // A real click goes to the front window at that place. The list of a dropdown is a window of its own.
+    // A test with hidden windows is a prohibited program, and macOS shows no window of it, so isVisible is false. The
+    // list of ordered windows still has only the windows that are open.
     NSWindow* target = nil;
     for (NSWindow* candidate in [NSApp orderedWindows])
     {
-        if ([candidate isVisible] && NSPointInRect(screenPoint, [candidate frame]))
+        if (([candidate isVisible] || CocoaHiddenWindows()) && NSPointInRect(screenPoint, [candidate frame]))
         {
             target = candidate;
             break;
@@ -1503,8 +1505,25 @@ void CocoaDisplayWindow::InjectNativeMouseEvent(int type, double x, double y)
                                      eventNumber:0
                                       clickCount:1
                                         pressure:(type == 0 ? 1.0f : 0.0f)];
-    if (event)
-        [target sendEvent:event];
+    if (!event)
+        return;
+    // macOS does not give a mouse-down event to a window that it does not show (a test with hidden windows). The
+    // event then goes directly to the view at that place, as sendEvent does it for a window on the screen.
+    if (CocoaHiddenWindows())
+    {
+        NSView* frameView = [[target contentView] superview];
+        NSView* hit = [frameView hitTest:[frameView convertPoint:[event locationInWindow] fromView:nil]];
+        if (!hit)
+            hit = [target contentView];
+        if (eventType == NSEventTypeLeftMouseDown)
+            [hit mouseDown:event];
+        else if (eventType == NSEventTypeLeftMouseUp)
+            [hit mouseUp:event];
+        else
+            [hit mouseMoved:event];
+        return;
+    }
+    [target sendEvent:event];
 }
 
 void* CocoaDisplayWindow::GetNativeHandle()
