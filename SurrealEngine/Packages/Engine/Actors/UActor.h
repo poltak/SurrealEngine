@@ -20,6 +20,7 @@ class U227SkeletalMeshInstance;
 class U227Projector;
 class U227AnimationNotify;
 class CollisionHit;
+class CollisionHitList;
 class BspNode;
 
 struct PointRegion
@@ -459,6 +460,8 @@ public:
 	bool TraceThisActor(vec3& TraceEnd, vec3 TraceStart, vec3* HitLocation, vec3* HitNormal, std::optional<vec3> Extent);
 
 	CollisionHit TryMove(const vec3& delta, bool dryRun = false, bool isOwnBaseBlocking = true);
+	// The first hit of the list that stops a move of this actor (TryMove uses it). Fraction 1 when no hit stops it.
+	CollisionHit FirstBlockingHit(const CollisionHitList& hits, bool isOwnBaseBlocking = true);
 	static void TwoWallAdjust(const vec3& desiredDir, vec3& delta, const vec3& hitNormal, const vec3& oldHitNormal, float hitTime);
 	CollisionHit TryMoveSmooth(const vec3& delta);
 	bool Move(const vec3& delta);

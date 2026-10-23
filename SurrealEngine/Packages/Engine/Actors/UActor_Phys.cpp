@@ -406,7 +406,33 @@ bool UActor::TryStepToGround(vec3 stepDownDelta)
 	}
 
 	// We could reach the ground. Step down there.
-	floorHit = TryMove(stepDownDelta);
+	if (engine->LaunchInfo.IsDeusEx() && Physics() == PHYS_Walking)
+	{
+		// APawn::physWalking of Deus Ex (build 1112fm) keeps a walking pawn 1.9 to 2.4 units above the floor. Out of
+		// that range it moves the pawn to 2.1 units. A full step down would stop 1 unit above the floor (TryMove stops
+		// 1 unit before a contact), and a jump from there does not get onto a ledge that the original gets onto.
+		// The dry run also stops 1 unit before the floor, so a gap of 1 unit or less (after a landing or a step) shows
+		// as no gap. Then a second test starts 2.1 units higher. When that test also starts in the floor, the pawn is
+		// deep in the level geometry or in an actor, and it stays where it is. Some persons of the maps start so, and a
+		// lift would put them on top of things: the woman behind the flower stand of 99_Endgame3 went onto the stand.
+		float stepLength = length(stepDownDelta);
+		float floorDistance = floorHit.Fraction * stepLength + 1.0f;
+		if (floorHit.Fraction == 0.0f)
+		{
+			vec3 start = Location() - stepDownDelta * (2.1f / stepLength);
+			CollisionHitList hits = XLevel()->Collision.Trace(start, start + stepDownDelta, CollisionHeight(), CollisionRadius(), bCollideActors(), bCollideWorld(), false);
+			CollisionHit higherHit = FirstBlockingHit(hits);
+			bool measured = higherHit.Fraction > 0.0f && higherHit.Fraction < 1.0f && higherHit.Normal.z >= 0.7071f;
+			floorDistance = measured ? higherHit.Fraction * stepLength + 1.0f - 2.1f : 2.1f;
+		}
+		if (floorDistance < 1.9f || floorDistance > 2.4f)
+			TryMove(stepDownDelta * ((floorDistance - 2.1f) / stepLength));
+	}
+	else
+	{
+		floorHit = TryMove(stepDownDelta);
+	}
+
 	if (floorHit.Fraction != 1.0f)
 	{
 		UActor* floor = FloorBase(floorHit.Actor);
@@ -789,32 +815,7 @@ CollisionHit UActor::TryMove(const vec3& delta, bool dryRun, bool isOwnBaseBlock
 	if (!Brush())
 	{
 		hits = XLevel()->Collision.Trace(Location(), Location() + delta, CollisionHeight(), CollisionRadius(), bCollideActors(), bCollideWorld(), false);
-		if (bCollideWorld() || bBlockActors() || bBlockPlayers())
-		{
-			for (auto& hit : hits)
-			{
-				if (hit.Actor)
-				{
-					bool isBlocking;
-					if (useBlockPlayers || UObject::TryCast<UPlayerPawn>(hit.Actor) || UObject::TryCast<UProjectile>(hit.Actor))
-						isBlocking = hit.Actor->bBlockPlayers() && bBlockPlayers();
-					else
-						isBlocking = hit.Actor->bBlockActors() && bBlockActors();
-
-					// We never hit ourselves or anything moving along with us
-					if (isBlocking && (isOwnBaseBlocking || !hit.Actor->IsBasedOn(this)) && !IsBasedOn(hit.Actor))
-					{
-						blockingHit = hit;
-						break;
-					}
-				}
-				else
-				{
-					blockingHit = hit;
-					break;
-				}
-			}
-		}
+		blockingHit = FirstBlockingHit(hits, isOwnBaseBlocking);
 	}
 
 	if (dryRun)
@@ -929,6 +930,34 @@ CollisionHit UActor::TryMove(const vec3& delta, bool dryRun, bool isOwnBaseBlock
 	UpdateActorZone();
 
 	return blockingHit;
+}
+
+CollisionHit UActor::FirstBlockingHit(const CollisionHitList& hits, bool isOwnBaseBlocking)
+{
+	if (!bCollideWorld() && !bBlockActors() && !bBlockPlayers())
+		return {};
+
+	bool useBlockPlayers = UObject::TryCast<UPlayerPawn>(this) || UObject::TryCast<UProjectile>(this);
+	for (auto& hit : hits)
+	{
+		if (hit.Actor)
+		{
+			bool isBlocking;
+			if (useBlockPlayers || UObject::TryCast<UPlayerPawn>(hit.Actor) || UObject::TryCast<UProjectile>(hit.Actor))
+				isBlocking = hit.Actor->bBlockPlayers() && bBlockPlayers();
+			else
+				isBlocking = hit.Actor->bBlockActors() && bBlockActors();
+
+			// We never hit ourselves or anything moving along with us
+			if (isBlocking && (isOwnBaseBlocking || !hit.Actor->IsBasedOn(this)) && !IsBasedOn(hit.Actor))
+				return hit;
+		}
+		else
+		{
+			return hit;
+		}
+	}
+	return {};
 }
 
 CollisionHit UActor::TryMoveSmooth(const vec3& delta)
