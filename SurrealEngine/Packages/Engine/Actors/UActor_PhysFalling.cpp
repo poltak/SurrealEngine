@@ -32,6 +32,14 @@ void UActor::TickFalling(float elapsed)
 	{
 		groundSpeed = pawn->GroundSpeed();
 		float maxAccel = engine->LaunchInfo.ue1Version > 219 ? pawn->AirControl() * pawn->AccelRate() : 0.0f;
+
+		// As AActor::physFalling of Deus Ex: a pawn that moves slower than 10 units per second in the XY plane can
+		// get to that speed in this tick. A player who jumps against a wall then moves onto the ledge at the top of
+		// the jump.
+		float speedXY = length(velocity.xy());
+		if (engine->LaunchInfo.IsDeusEx() && speedXY < 10.0f)
+			maxAccel += (10.0f - speedXY) / elapsed;
+
 		float accel = length(acceleration);
 		if (accel > maxAccel)
 			acceleration = normalize(acceleration) * maxAccel;
@@ -56,6 +64,19 @@ void UActor::TickFalling(float elapsed)
 	vec3 accelVector = acceleration * 1.5f;
 	vec3 gravityVector = gravityScale * zone->ZoneGravity();
 
+	// AActor::physFalling of Deus Ex (build 1112fm) moves the actor with the mean velocity of the tick: the old velocity
+	// plus half of the change that the acceleration and the gravity give. After the move, the velocity gets the full
+	// change (see the end of this function). So the actor follows the true curve of a throw at each frame rate. A jump
+	// of the player (JumpZ 300, gravity 950) goes up 47.4 units, which is necessary for the 48 units high platforms
+	// at the ladders on the roofs of 02_NYC_Warehouse. A move with the end velocity of the tick goes up only 44.8
+	// units at 30 frames per second.
+	bool meanVelocityMove = engine->LaunchInfo.IsDeusEx();
+	if (meanVelocityMove)
+	{
+		accelVector = acceleration;
+		gravityVector = 0.5f * gravityScale * zone->ZoneGravity();
+	}
+
 	vec3 oldVelocity = velocity;
 	vec3 newVelocity = oldVelocity * fluidFactor + (accelVector + gravityVector) * 0.5f * elapsed;
 
@@ -70,6 +91,8 @@ void UActor::TickFalling(float elapsed)
 	}
 	velocity = newVelocity;
 
+	bool bounced = false;
+	bool slid = false;
 	float timeLeft = elapsed;
 	for (int iteration = 0; timeLeft > 0.0f && iteration < 5; iteration++)
 	{
@@ -106,6 +129,7 @@ void UActor::TickFalling(float elapsed)
 			// Hit the level
 			if (bBounce())
 			{
+				bounced = true;
 				vec3 reflectedDelta = reflect(moveDelta, hit.Normal);
 				hit = TryMove(reflectedDelta);
 			}
@@ -132,6 +156,7 @@ void UActor::TickFalling(float elapsed)
 					if (!bBounce())
 						RecomputeVelocityFromDisplacement(elapsed);
 
+					slid = true;
 					timeLeft = 0.0f;
 				}
 				else
@@ -140,6 +165,20 @@ void UActor::TickFalling(float elapsed)
 					timeLeft = 0.0f;
 				}
 			}
+		}
+	}
+
+	// The velocity at the end of the tick, as AActor::physFalling of Deus Ex: two times the mean velocity of the move,
+	// less the old velocity. After a slide along a wall, the horizontal velocity stays the one of the slide. The
+	// original keeps the mean velocity when the actor goes down more slowly at the end (water friction).
+	if (meanVelocityMove && Physics() == PHYS_Falling && !bJustTeleported() && !bounced)
+	{
+		if (velocity.z < oldVelocity.z || oldVelocity.z >= 0.0f)
+		{
+			if (slid)
+				velocity.z = 2.0f * velocity.z - oldVelocity.z;
+			else
+				velocity = 2.0f * velocity - oldVelocity;
 		}
 	}
 }
